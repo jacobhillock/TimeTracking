@@ -198,21 +198,30 @@ function App() {
             client: entry.client,
             ticket: entry.ticket,
             minutes: 0,
-            descriptions: []
+            descriptions: [],
+            allDisabled: true
           }
         }
         summary[key].minutes += minutes
+        if (!entry.disabled) {
+          summary[key].allDisabled = false
+        }
         if (entry.description && entry.description.trim()) {
           summary[key].descriptions.push(entry.description.trim())
         }
       }
     })
 
-    return Object.entries(summary).map(([key, data]) => ({
+    const summaryArray = Object.entries(summary).map(([key, data]) => ({
       key,
       ...data,
       hours: (data.minutes / 60).toFixed(2)
     }))
+
+    return summaryArray.sort((a, b) => {
+      if (a.allDisabled === b.allDisabled) return 0
+      return a.allDisabled ? 1 : -1
+    })
   }
 
   const formatDate = (date) => {
