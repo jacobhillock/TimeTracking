@@ -106,6 +106,30 @@ function App() {
     updateDayEntries(dayEntries.filter(e => e.id !== id))
   }
 
+  const handleDragStart = (e, index) => {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/html', index)
+  }
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault()
+    const dragIndex = parseInt(e.dataTransfer.getData('text/html'))
+    
+    if (dragIndex === dropIndex) return
+    
+    const dayEntries = getDayEntries()
+    const newEntries = [...dayEntries]
+    const [draggedItem] = newEntries.splice(dragIndex, 1)
+    newEntries.splice(dropIndex, 0, draggedItem)
+    
+    updateDayEntries(newEntries)
+  }
+
   const addMinutes = (time, minutes) => {
     const [hours, mins] = time.split(':').map(Number)
     const totalMinutes = hours * 60 + mins + minutes
@@ -228,8 +252,16 @@ function App() {
         </div>
 
         <div className="time-entries">
-          {getDayEntries().map((entry) => (
-            <div key={entry.id} className="time-entry" style={{ opacity: entry.disabled ? 0.5 : 1 }}>
+          {getDayEntries().map((entry, index) => (
+            <div 
+              key={entry.id} 
+              className="time-entry" 
+              style={{ opacity: entry.disabled ? 0.5 : 1, cursor: 'move' }}
+              draggable
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDrop={(e) => handleDrop(e, index)}
+            >
               <input
                 type="checkbox"
                 checked={entry.disabled || false}
