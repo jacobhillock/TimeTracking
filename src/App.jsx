@@ -173,10 +173,14 @@ function App() {
           summary[key] = {
             client: entry.client,
             ticket: entry.ticket,
-            minutes: 0
+            minutes: 0,
+            descriptions: []
           }
         }
         summary[key].minutes += minutes
+        if (entry.description && entry.description.trim()) {
+          summary[key].descriptions.push(entry.description.trim())
+        }
       }
     })
 
@@ -309,24 +313,35 @@ function App() {
           {getSummary().length > 0 ? (
             <ul className="client-list">
               {getSummary().map(item => (
-                <li key={item.key} className="client-item">
-                  <div>
-                    {jiraBaseUrl ? (
-                      <a 
-                        href={getJiraUrl(item.client, item.ticket)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
-                      >
-                        {item.key}
-                      </a>
-                    ) : (
-                      <strong>{item.key}</strong>
-                    )}
-                    <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
-                      {item.hours} hours
+                <li key={item.key} className="client-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                    <div>
+                      {jiraBaseUrl ? (
+                        <a 
+                          href={getJiraUrl(item.client, item.ticket)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
+                        >
+                          {item.key}
+                        </a>
+                      ) : (
+                        <strong>{item.key}</strong>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#666', fontWeight: '600' }}>
+                      {item.hours}h
                     </div>
                   </div>
+                  {item.descriptions.length > 0 && (
+                    <ul style={{ marginTop: '8px', paddingLeft: '20px', width: '100%' }}>
+                      {item.descriptions.map((desc, idx) => (
+                        <li key={idx} style={{ fontSize: '13px', color: '#555', marginBottom: '4px' }}>
+                          {desc}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>
