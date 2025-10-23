@@ -195,6 +195,10 @@ function App() {
     })
   }
 
+  const handleCalendarClick = () => {
+    document.getElementById('date-picker').showPicker()
+  }
+
   return (
     <div className="app">
       <div className="main-content">
@@ -205,6 +209,16 @@ function App() {
             <span>{formatDate(currentDate)}</span>
             <button onClick={() => changeDate(1)}>Next →</button>
             <button onClick={() => setCurrentDate(new Date())}>Today</button>
+            <div className="date-picker-wrapper">
+              <span className="calendar-icon" onClick={handleCalendarClick}>📅</span>
+              <input
+                id="date-picker"
+                type="date"
+                value={currentDate.toISOString().split('T')[0]}
+                onChange={(e) => setCurrentDate(new Date(e.target.value + 'T12:00:00'))}
+                className="date-picker-input"
+              />
+            </div>
           </div>
         </div>
 

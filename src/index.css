@@ -19,12 +19,13 @@ body {
 
 .app {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
 }
 
 .main-content {
   flex: 1;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .sidebar {
@@ -71,6 +72,29 @@ body {
   font-weight: 600;
   min-width: 150px;
   text-align: center;
+}
+
+.date-picker-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.calendar-icon {
+  font-size: 32px !important;
+  cursor: pointer;
+  user-select: none;
+}
+
+.date-picker-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.calendar-icon:hover {
+  opacity: 0.7;
 }
 
 .time-entries {
