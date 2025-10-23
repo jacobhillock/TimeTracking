@@ -78,7 +78,8 @@ function App() {
       endTime: '',
       client: '',
       ticket: '',
-      description: ''
+      description: '',
+      disabled: false
     }
     
     updateDayEntries([...dayEntries, newEntry])
@@ -224,20 +225,29 @@ function App() {
 
         <div className="time-entries">
           {getDayEntries().map((entry) => (
-            <div key={entry.id} className="time-entry">
+            <div key={entry.id} className="time-entry" style={{ opacity: entry.disabled ? 0.5 : 1 }}>
+              <input
+                type="checkbox"
+                checked={entry.disabled || false}
+                onChange={(e) => updateEntry(entry.id, 'disabled', e.target.checked)}
+                title="Disable this entry"
+              />
               <input
                 type="time"
                 value={entry.startTime}
                 onChange={(e) => updateEntry(entry.id, 'startTime', e.target.value)}
+                disabled={entry.disabled}
               />
               <input
                 type="time"
                 value={entry.endTime}
                 onChange={(e) => updateEntry(entry.id, 'endTime', e.target.value)}
+                disabled={entry.disabled}
               />
               <select
                 value={entry.client}
                 onChange={(e) => updateEntry(entry.id, 'client', e.target.value)}
+                disabled={entry.disabled}
               >
                 <option value="">Select Client</option>
                 {clients.map(client => (
@@ -249,6 +259,7 @@ function App() {
                 placeholder="Ticket #"
                 value={entry.ticket}
                 onChange={(e) => updateEntry(entry.id, 'ticket', e.target.value)}
+                disabled={entry.disabled}
               />
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <input
@@ -257,6 +268,7 @@ function App() {
                   value={entry.description}
                   onChange={(e) => updateEntry(entry.id, 'description', e.target.value)}
                   style={{ flex: 1 }}
+                  disabled={entry.disabled}
                 />
                 {getJiraUrl(entry.client, entry.ticket) && (
                   <a 
@@ -270,7 +282,7 @@ function App() {
                   </a>
                 )}
               </div>
-              <button onClick={() => deleteEntry(entry.id)}>✕</button>
+              <button onClick={() => deleteEntry(entry.id)} disabled={entry.disabled}>✕</button>
             </div>
           ))}
           <button 
