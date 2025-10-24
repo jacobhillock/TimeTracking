@@ -222,10 +222,12 @@ function App() {
             ticket: entry.ticket,
             minutes: 0,
             descriptions: [],
-            allDisabled: true
+            allDisabled: true,
+            entryIds: []
           }
         }
         summary[key].minutes += minutes
+        summary[key].entryIds.push(entry.id)
         if (!entry.disabled) {
           summary[key].allDisabled = false
         }
@@ -245,6 +247,17 @@ function App() {
       if (a.allDisabled === b.allDisabled) return 0
       return a.allDisabled ? 1 : -1
     })
+  }
+
+  const toggleSummaryEntries = (entryIds, disabled) => {
+    const dayEntries = getDayEntries()
+    const updatedEntries = dayEntries.map(entry => {
+      if (entryIds.includes(entry.id)) {
+        return { ...entry, disabled }
+      }
+      return entry
+    })
+    updateDayEntries(updatedEntries)
   }
 
   const formatDate = (date) => {
@@ -386,7 +399,7 @@ function App() {
           {getSummary().length > 0 ? (
             <ul className="client-list">
               {getSummary().map(item => (
-                <li key={item.key} className="client-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                <li key={item.key} className="client-item" style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                     <div>
                       {jiraBaseUrl ? (
@@ -415,6 +428,14 @@ function App() {
                       ))}
                     </ul>
                   )}
+                  <div style={{ position: 'absolute', bottom: '10px', right: '10px' }}>
+                    <input
+                      type="checkbox"
+                      checked={item.allDisabled}
+                      onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
+                      title="Toggle all entries for this ticket"
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
