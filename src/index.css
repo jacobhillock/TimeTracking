@@ -385,3 +385,18 @@ body.dark-mode .dark-mode-toggle:hover {
   text-decoration: none;
   opacity: 0.8;
 }
+
+.summary-link {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.summary-link:hover {
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+body.dark-mode .summary-link {
+  color: #4a9eff;
+}

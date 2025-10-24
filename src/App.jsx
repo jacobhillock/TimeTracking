@@ -394,7 +394,7 @@ function App() {
                           href={getJiraUrl(item.client, item.ticket)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}
+                          className="summary-link"
                         >
                           {item.key}
                         </a>
@@ -402,14 +402,14 @@ function App() {
                         <strong>{item.key}</strong>
                       )}
                     </div>
-                    <div style={{ fontSize: '14px', color: '#666', fontWeight: '600' }}>
+                    <div className="summary-hours">
                       {item.hours}h
                     </div>
                   </div>
                   {item.descriptions.length > 0 && (
                     <ul style={{ marginTop: '8px', paddingLeft: '20px', width: '100%' }}>
                       {item.descriptions.map((desc, idx) => (
-                        <li key={idx} style={{ fontSize: '13px', color: '#555', marginBottom: '4px' }}>
+                        <li key={idx} className="summary-description">
                           {desc}
                         </li>
                       ))}
