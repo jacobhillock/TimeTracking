@@ -18,6 +18,14 @@ function App() {
     const saved = localStorage.getItem('defaultStartTime')
     return saved || '09:00'
   })
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode')
+    return saved ? JSON.parse(saved) : false
+  })
+  const [sidebarVisible, setSidebarVisible] = useState(() => {
+    const saved = localStorage.getItem('sidebarVisible')
+    return saved ? JSON.parse(saved) : true
+  })
   const [newClient, setNewClient] = useState('')
   const isInitialMount = useRef(true)
 
@@ -54,6 +62,21 @@ function App() {
       console.log('Saved defaultStartTime to localStorage:', defaultStartTime)
     }
   }, [defaultStartTime])
+
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      localStorage.setItem('darkMode', JSON.stringify(darkMode))
+      console.log('Saved darkMode to localStorage:', darkMode)
+    }
+    document.body.classList.toggle('dark-mode', darkMode)
+  }, [darkMode])
+
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      localStorage.setItem('sidebarVisible', JSON.stringify(sidebarVisible))
+      console.log('Saved sidebarVisible to localStorage:', sidebarVisible)
+    }
+  }, [sidebarVisible])
 
   const getDayEntries = () => {
     return entries[dateKey] || []
@@ -240,6 +263,13 @@ function App() {
   return (
     <div className="app">
       <div className="main-content">
+        <button 
+          className="sidebar-toggle-button"
+          onClick={() => setSidebarVisible(!sidebarVisible)}
+          title={sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
+        >
+          {sidebarVisible ? '›' : '‹'}
+        </button>
         <div className="header">
           <h1>Time Tracker</h1>
           <div className="date-navigation">
@@ -348,7 +378,9 @@ function App() {
         </div>
       </div>
 
-      <div className="sidebar">
+      {sidebarVisible && (
+        <div className="sidebar-container">
+        <div className="sidebar">
         <div className="sidebar-section">
           <h2>Summary</h2>
           {getSummary().length > 0 ? (
@@ -439,7 +471,19 @@ function App() {
             New entries will start at {defaultStartTime} (if no previous entries)
           </div>
         </div>
+
+        <div className="sidebar-section dark-mode-section">
+          <button 
+            className="dark-mode-toggle"
+            onClick={() => setDarkMode(!darkMode)}
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+          </button>
+        </div>
       </div>
+      </div>
+      )}
     </div>
   )
 }
