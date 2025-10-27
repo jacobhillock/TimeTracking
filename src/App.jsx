@@ -115,6 +115,23 @@ function App() {
     if (index === -1) return
 
     const updatedEntries = [...dayEntries]
+    
+    // If end time is before start time, add 12 hours to make it afternoon
+    if (field === 'endTime' && value && value.includes(':')) {
+      const startTime = dayEntries[index].startTime
+      if (startTime) {
+        const [startH, startM] = startTime.split(':').map(Number)
+        const [endH, endM] = value.split(':').map(Number)
+        const startMinutes = startH * 60 + startM
+        const endMinutes = endH * 60 + endM
+        
+        if (endMinutes < startMinutes) {
+          const adjustedHours = (endH + 12) % 24
+          value = `${String(adjustedHours).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+        }
+      }
+    }
+
     updatedEntries[index] = { ...updatedEntries[index], [field]: value }
 
     if (field === 'endTime' && value && index < updatedEntries.length - 1) {
