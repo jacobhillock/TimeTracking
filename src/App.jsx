@@ -183,11 +183,13 @@ function App() {
     let totalMinutes = 0
 
     dayEntries.forEach(entry => {
-      const [startH, startM] = entry.startTime.split(':').map(Number)
-      const [endH, endM] = entry.endTime.split(':').map(Number)
-      const start = startH * 60 + startM
-      const end = endH * 60 + endM
-      totalMinutes += end - start
+      if (entry.startTime && entry.endTime) {
+        const [startH, startM] = entry.startTime.split(':').map(Number)
+        const [endH, endM] = entry.endTime.split(':').map(Number)
+        const start = startH * 60 + startM
+        const end = endH * 60 + endM
+        totalMinutes += end - start
+      }
     })
 
     const hours = Math.floor(totalMinutes / 60)
@@ -224,7 +226,7 @@ function App() {
     const summary = {}
 
     dayEntries.forEach(entry => {
-      if (entry.client && entry.ticket) {
+      if (entry.client && entry.ticket && entry.startTime && entry.endTime) {
         const key = `${entry.client}-${entry.ticket}`
         
         const [startH, startM] = entry.startTime.split(':').map(Number)
