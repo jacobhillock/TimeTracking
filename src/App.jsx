@@ -314,6 +314,28 @@ function App() {
     })
   }
 
+  const getClientTotals = () => {
+    const dayEntries = getDayEntries()
+    const clientTotals = {}
+
+    dayEntries.forEach(entry => {
+      if (entry.client && entry.startTime && entry.endTime && !entry.disabled) {
+        const [startH, startM] = entry.startTime.split(':').map(Number)
+        const [endH, endM] = entry.endTime.split(':').map(Number)
+        const start = startH * 60 + startM
+        const end = endH * 60 + endM
+        const minutes = end - start
+
+        if (!clientTotals[entry.client]) {
+          clientTotals[entry.client] = 0
+        }
+        clientTotals[entry.client] += minutes
+      }
+    })
+
+    return clientTotals
+  }
+
   const toggleSummaryEntries = (entryIds, disabled) => {
     const dayEntries = getDayEntries()
     const updatedEntries = dayEntries.map(entry => {
@@ -467,7 +489,7 @@ function App() {
         <div className="sidebar-container">
         <div className="sidebar">
         <CollapsibleSection 
-          title="Summary" 
+          title="Ticket Summaries" 
           sectionName="summary"
           isCollapsed={collapsedSections.summary}
           onToggle={() => toggleSection('summary')}
@@ -539,12 +561,23 @@ function App() {
             Add Client
           </button>
           <ul className="client-list">
-            {clients.map(client => (
-              <li key={client} className="client-item">
-                <span>{client}</span>
-                <button onClick={() => removeClient(client)}>Remove</button>
-              </li>
-            ))}
+            {clients.map(client => {
+              const clientTotals = getClientTotals()
+              const totalHours = clientTotals[client] ? (clientTotals[client] / 60).toFixed(2) : '0.00'
+              return (
+                <li key={client} className="client-item">
+                  <span>
+                    {client}
+                    {clientTotals[client] && clientTotals[client] > 0 && (
+                      <span style={{ color: '#999', fontSize: '12px', marginLeft: '8px' }}>
+                        ({totalHours}h)
+                      </span>
+                    )}
+                  </span>
+                  <button onClick={() => removeClient(client)}>Remove</button>
+                </li>
+              )
+            })}
           </ul>
         </CollapsibleSection>
 
