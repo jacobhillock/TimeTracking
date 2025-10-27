@@ -400,3 +400,13 @@ body.dark-mode .dark-mode-toggle:hover {
 body.dark-mode .summary-link {
   color: #4a9eff;
 }
+
+.section-content {
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.section-content.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+}

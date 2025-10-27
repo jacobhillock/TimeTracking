@@ -1,5 +1,40 @@
 import { useState, useEffect, useRef } from 'react'
 
+function Chevron({ isCollapsed }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 0.2s' }}>
+      <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, children }) {
+  const contentRef = useRef(null)
+  const [maxHeight, setMaxHeight] = useState('none')
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setMaxHeight(isCollapsed ? '0px' : `${contentRef.current.scrollHeight}px`)
+    }
+  }, [isCollapsed, children])
+
+  return (
+    <div className="sidebar-section">
+      <h2 onClick={onToggle} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Chevron isCollapsed={isCollapsed} />
+        {title}
+      </h2>
+      <div 
+        ref={contentRef}
+        className={`section-content ${isCollapsed ? 'collapsed' : ''}`}
+        style={{ maxHeight }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [entries, setEntries] = useState(() => {
@@ -25,6 +60,10 @@ function App() {
   const [sidebarVisible, setSidebarVisible] = useState(() => {
     const saved = localStorage.getItem('sidebarVisible')
     return saved ? JSON.parse(saved) : true
+  })
+  const [collapsedSections, setCollapsedSections] = useState(() => {
+    const saved = localStorage.getItem('collapsedSections')
+    return saved ? JSON.parse(saved) : {}
   })
   const [newClient, setNewClient] = useState('')
   const isInitialMount = useRef(true)
@@ -77,6 +116,13 @@ function App() {
       console.log('Saved sidebarVisible to localStorage:', sidebarVisible)
     }
   }, [sidebarVisible])
+
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      localStorage.setItem('collapsedSections', JSON.stringify(collapsedSections))
+      console.log('Saved collapsedSections to localStorage:', collapsedSections)
+    }
+  }, [collapsedSections])
 
   const getDayEntries = () => {
     return entries[dateKey] || []
@@ -292,6 +338,13 @@ function App() {
     document.getElementById('date-picker').showPicker()
   }
 
+  const toggleSection = (sectionName) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }))
+  }
+
   return (
     <div className="app">
       <div className="main-content">
@@ -413,8 +466,12 @@ function App() {
       {sidebarVisible && (
         <div className="sidebar-container">
         <div className="sidebar">
-        <div className="sidebar-section">
-          <h2>Summary</h2>
+        <CollapsibleSection 
+          title="Summary" 
+          sectionName="summary"
+          isCollapsed={collapsedSections.summary}
+          onToggle={() => toggleSection('summary')}
+        >
           {getSummary().length > 0 ? (
             <ul className="client-list">
               {getSummary().map(item => (
@@ -463,10 +520,14 @@ function App() {
               No entries with client and ticket yet
             </div>
           )}
-        </div>
+        </CollapsibleSection>
 
-        <div className="sidebar-section">
-          <h2>Clients</h2>
+        <CollapsibleSection 
+          title="Clients" 
+          sectionName="clients"
+          isCollapsed={collapsedSections.clients}
+          onToggle={() => toggleSection('clients')}
+        >
           <input
             type="text"
             placeholder="New client name"
@@ -485,32 +546,39 @@ function App() {
               </li>
             ))}
           </ul>
-        </div>
+        </CollapsibleSection>
 
-        <div className="sidebar-section">
-          <h2>Jira Base URL</h2>
-          <input
-            type="text"
-            placeholder="e.g., https://jira.example.com/browse"
-            value={jiraBaseUrl}
-            onChange={(e) => setJiraBaseUrl(e.target.value)}
-          />
-          <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-            Tickets will link to: {jiraBaseUrl || '(not set)'}/CLIENT-123
+        <CollapsibleSection 
+          title="Settings" 
+          sectionName="settings"
+          isCollapsed={collapsedSections.settings}
+          onToggle={() => toggleSection('settings')}
+        >
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Jira Base URL</h3>
+            <input
+              type="text"
+              placeholder="e.g., https://jira.example.com/browse"
+              value={jiraBaseUrl}
+              onChange={(e) => setJiraBaseUrl(e.target.value)}
+            />
+            <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+              Tickets will link to: {jiraBaseUrl || '(not set)'}/CLIENT-123
+            </div>
           </div>
-        </div>
 
-        <div className="sidebar-section">
-          <h2>Default Start Time</h2>
-          <input
-            type="time"
-            value={defaultStartTime}
-            onChange={(e) => setDefaultStartTime(e.target.value)}
-          />
-          <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-            New entries will start at {defaultStartTime} (if no previous entries)
+          <div>
+            <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Default Start Time</h3>
+            <input
+              type="time"
+              value={defaultStartTime}
+              onChange={(e) => setDefaultStartTime(e.target.value)}
+            />
+            <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+              New entries will start at {defaultStartTime} (if no previous entries)
+            </div>
           </div>
-        </div>
+        </CollapsibleSection>
 
         <div className="sidebar-section dark-mode-section">
           <button 
