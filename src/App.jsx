@@ -319,7 +319,7 @@ function App() {
     const clientTotals = {}
 
     dayEntries.forEach(entry => {
-      if (entry.client && entry.startTime && entry.endTime && !entry.disabled) {
+      if (entry.client && entry.startTime && entry.endTime) {
         const [startH, startM] = entry.startTime.split(':').map(Number)
         const [endH, endM] = entry.endTime.split(':').map(Number)
         const start = startH * 60 + startM
