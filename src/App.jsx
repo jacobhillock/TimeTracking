@@ -519,7 +519,9 @@ function App() {
                   </div>
                   {item.descriptions.length > 0 && (
                     <ul style={{ marginTop: '8px', paddingLeft: '20px', width: '100%' }}>
-                      {item.descriptions.map((desc, idx) => (
+                      {item.descriptions.flatMap((desc) => 
+                        desc.split(';').map((part) => part.trim()).filter(part => part.length > 0)
+                      ).map((desc, idx) => (
                         <li key={idx} className="summary-description">
                           {desc}
                         </li>
