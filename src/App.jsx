@@ -39,6 +39,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const [dragStart, setDragStart] = useState(null)
   const [dragEnd, setDragEnd] = useState(null)
   const [dragPreview, setDragPreview] = useState(null)
+  const [hoveredTimeRange, setHoveredTimeRange] = useState(null)
   const gridRef = useRef(null)
   const businessWeekDates = getBusinessWeekDates()
 
@@ -186,6 +187,29 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     setDragPreview(null)
   }
 
+  const handleEntryMouseEnter = (entry) => {
+    const startMin = timeToMinutes(entry.startTime)
+    const endMin = timeToMinutes(entry.endTime)
+    setHoveredTimeRange({ start: startMin, end: endMin })
+  }
+
+  const handleEntryMouseLeave = () => {
+    setHoveredTimeRange(null)
+  }
+
+  const isTimeLabelInRange = (min) => {
+    if (!hoveredTimeRange) return false
+    return min >= hoveredTimeRange.start && min < hoveredTimeRange.end
+  }
+
+  const handleSlotMouseEnter = (slotMinutes) => {
+    setHoveredTimeRange({ start: slotMinutes, end: slotMinutes + intervalMinutes })
+  }
+
+  const handleSlotMouseLeave = () => {
+    setHoveredTimeRange(null)
+  }
+
   const getHourMarkers = () => {
     const { start, end } = getVisibleMinutes()
     const markers = []
@@ -221,7 +245,11 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
       >
         <div className="calendar-time-column">
           {hourMarkers.map(min => (
-            <div key={min} className="calendar-hour-label" style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}>
+            <div 
+              key={min} 
+              className={`calendar-hour-label ${isTimeLabelInRange(min) ? 'highlighted' : ''}`}
+              style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
+            >
               {minutesToTime(min)}
             </div>
           ))}
@@ -233,7 +261,13 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
           return (
             <div key={dateKey} className="calendar-day-column">
               {hourMarkers.map(min => (
-                <div key={min} className="calendar-hour-slot" style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}></div>
+                <div 
+                  key={min} 
+                  className="calendar-hour-slot" 
+                  style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
+                  onMouseEnter={() => handleSlotMouseEnter(min)}
+                  onMouseLeave={handleSlotMouseLeave}
+                ></div>
               ))}
               
               {dragPreview && dragPreview.date.toISOString().split('T')[0] === dateKey && (
@@ -274,6 +308,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                       e.stopPropagation()
                       onEditEntry(entry)
                     }}
+                    onMouseEnter={() => handleEntryMouseEnter(entry)}
+                    onMouseLeave={handleEntryMouseLeave}
                   >
                     <div className="entry-client">{entry.client}</div>
                     <div className="entry-ticket">{entry.ticket}</div>

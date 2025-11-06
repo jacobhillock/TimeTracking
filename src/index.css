@@ -548,12 +548,24 @@ body.dark-mode .calendar-grid {
   border-bottom: 1px solid #e0e0e0;
   background: #f8f9fa;
   font-weight: 500;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.calendar-hour-label.highlighted {
+  background: #007bff;
+  color: white;
+  font-weight: 600;
 }
 
 body.dark-mode .calendar-hour-label {
   background: #333;
   border-bottom-color: #4a4a4a;
   color: #999;
+}
+
+body.dark-mode .calendar-hour-label.highlighted {
+  background: #4a9eff;
+  color: white;
 }
 
 .calendar-day-column {
