@@ -767,7 +767,7 @@ function App() {
   }
 
   const toggleSummaryEntries = (entryIds, disabled) => {
-    const dayEntries = getDayEntries()
+    const dayEntries = entries[dateKey] || []
     const updatedEntries = dayEntries.map(entry => {
       if (entryIds.includes(entry.id)) {
         return { ...entry, disabled }
