@@ -36,9 +36,9 @@ function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, childre
 }
 
 function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry }) {
-  const [dragStart, setDragStart] = useState(null)
-  const [dragEnd, setDragEnd] = useState(null)
-  const [dragPreview, setDragPreview] = useState(null)
+  const [dragStartRegion, setDragStartRegion] = useState(null)
+  const [dragCurrentRegion, setDragCurrentRegion] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [hoveredTimeRange, setHoveredTimeRange] = useState(null)
   const gridRef = useRef(null)
   const businessWeekDates = getBusinessWeekDates()
@@ -99,80 +99,33 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     return businessWeekDates[columnIndex]
   }
 
-  const getTimeFromMouseEvent = (e) => {
-    const grid = gridRef.current
-    if (!grid) return null
-    
-    const gridRect = grid.getBoundingClientRect()
-    const { start, duration } = getVisibleMinutes()
-    
-    // Calculate offset from the top of the grid
-    const offsetY = Math.max(0, Math.min(gridRect.height, e.clientY - gridRect.top))
-    
-    // Account for scrolling - get the scroll offset
-    const scrollOffset = grid.scrollTop
-    const totalOffsetY = offsetY + scrollOffset
-    
-    // Calculate minutes based on total offset and grid height
-    const minutes = Math.floor((totalOffsetY / grid.scrollHeight) * duration) + start
-    return Math.max(start, Math.min(start + duration, minutes))
+  const handleSlotMouseDown = (date, slotMinutes) => {
+    setDragStartRegion({ date, minutes: slotMinutes })
+    setDragCurrentRegion({ date, minutes: slotMinutes })
+    setIsDragging(true)
   }
 
-  const handleGridMouseDown = (e) => {
-    if (e.button !== 0) return
-    
-    // Don't start drag if clicking on an entry card
-    if (e.target.closest('.calendar-entry')) return
-    
-    const date = getDateFromMouseEvent(e)
-    if (!date) return
-
-    const minutes = getTimeFromMouseEvent(e)
-    setDragStart({ date, minutes })
-    setDragEnd({ date, minutes })
-    setDragPreview({ date, minutes })
+  const handleSlotMouseEnterDrag = (date, slotMinutes) => {
+    if (!isDragging || !dragStartRegion) return
+    setDragCurrentRegion({ date, minutes: slotMinutes })
   }
 
-  const handleGridMouseMove = (e) => {
-    if (!dragStart) return
-    const minutes = getTimeFromMouseEvent(e)
-    setDragEnd({ date: dragStart.date, minutes })
-    setDragPreview({ date: dragStart.date, minutes })
-  }
-
-  const handleGridMouseUp = () => {
-    if (!dragStart || !dragEnd) {
-      setDragStart(null)
-      setDragEnd(null)
-      setDragPreview(null)
+  const handleMouseUp = () => {
+    if (!isDragging || !dragStartRegion || !dragCurrentRegion) {
+      setDragStartRegion(null)
+      setDragCurrentRegion(null)
+      setIsDragging(false)
       return
     }
 
-    const startMin = floorToInterval(Math.min(dragStart.minutes, dragEnd.minutes))
-    const endMin = ceilToInterval(Math.max(dragStart.minutes, dragEnd.minutes))
+    const startMin = Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)
+    const endMin = Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes
 
-    if (startMin === endMin) {
-      setDragStart(null)
-      setDragEnd(null)
-      setDragPreview(null)
-      return
-    }
-
-    const dateKey = dragStart.date.toISOString().split('T')[0]
-    const dayEntries = entries[dateKey] || []
-    
-    let adjustedStart = startMin
-    const nearbyEntries = dayEntries.filter(entry => {
-      const entryEndMin = timeToMinutes(entry.endTime)
-      return Math.abs(entryEndMin - startMin) < intervalMinutes
-    })
-    if (nearbyEntries.length > 0) {
-      adjustedStart = timeToMinutes(nearbyEntries[nearbyEntries.length - 1].endTime)
-    }
+    const dateKey = dragStartRegion.date.toISOString().split('T')[0]
 
     const newEntry = {
       id: Date.now(),
-      startTime: minutesToTime(adjustedStart),
+      startTime: minutesToTime(startMin),
       endTime: minutesToTime(endMin),
       client: '',
       ticket: '',
@@ -182,9 +135,9 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
 
     onAddEntry(dateKey, newEntry)
     onEditEntry(newEntry)
-    setDragStart(null)
-    setDragEnd(null)
-    setDragPreview(null)
+    setDragStartRegion(null)
+    setDragCurrentRegion(null)
+    setIsDragging(false)
   }
 
   const handleEntryMouseEnter = (entry) => {
@@ -238,10 +191,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
       <div 
         className="calendar-grid"
         ref={gridRef}
-        onMouseDown={handleGridMouseDown}
-        onMouseMove={handleGridMouseMove}
-        onMouseUp={handleGridMouseUp}
-        onMouseLeave={handleGridMouseUp}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
       >
         <div className="calendar-time-column">
           {hourMarkers.map(min => (
@@ -265,21 +216,30 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                   key={min} 
                   className="calendar-hour-slot" 
                   style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
-                  onMouseEnter={() => handleSlotMouseEnter(min)}
+                  onMouseDown={(e) => {
+                    if (e.button === 0 && !e.target.closest('.calendar-entry')) {
+                      handleSlotMouseDown(date, min)
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    handleSlotMouseEnter(min)
+                    handleSlotMouseEnterDrag(date, min)
+                  }}
                   onMouseLeave={handleSlotMouseLeave}
                 ></div>
               ))}
               
-              {dragPreview && dragPreview.date.toISOString().split('T')[0] === dateKey && (
+              {isDragging && dragStartRegion && dragCurrentRegion && 
+               dragStartRegion.date.toISOString().split('T')[0] === dateKey && (
                 <div
                   className="calendar-drag-preview"
                   style={{
-                    top: `${((Math.min(dragStart.minutes, dragEnd.minutes) - visibleStart) / visibleDuration) * 100}%`,
-                    height: `${((Math.abs(dragEnd.minutes - dragStart.minutes)) / visibleDuration) * 100}%`
+                    top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleDuration) * 100}%`,
+                    height: `${((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes - Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) / visibleDuration) * 100}%`
                   }}
                 >
                   <div className="preview-time">
-                    {minutesToTime(Math.min(dragStart.minutes, dragEnd.minutes))} - {minutesToTime(Math.max(dragStart.minutes, dragEnd.minutes))}
+                    {minutesToTime(Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes))} - {minutesToTime(Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes)}
                   </div>
                 </div>
               )}
