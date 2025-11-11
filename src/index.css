@@ -593,7 +593,7 @@ body.dark-mode .calendar-hour-slot {
   position: absolute;
   left: 1px;
   right: 1px;
-  margin: 2px;
+  margin: 4px 2px;
   background: #007bff;
   color: white;
   border-radius: 4px;
@@ -662,7 +662,7 @@ body.dark-mode .calendar-hour-slot {
   position: absolute;
   left: 1px;
   right: 1px;
-  margin: 2px;
+  margin: 4px 2px;
   background: rgba(0, 123, 255, 0.3);
   border: 2px dashed #007bff;
   border-radius: 4px;

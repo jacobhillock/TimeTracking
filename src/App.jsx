@@ -235,7 +235,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                   className="calendar-drag-preview"
                   style={{
                     top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleDuration) * 100}%`,
-                    height: `${((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes - Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) / visibleDuration) * 100}%`
+                    height: `calc(${((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes - Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) / visibleDuration) * 100}% - 8px)`
                   }}
                 >
                   <div className="preview-time">
@@ -262,7 +262,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                     className={`calendar-entry ${entry.disabled ? 'disabled' : ''}`}
                     style={{
                       top: `${topPercent}%`,
-                      height: `${heightPercent}%`
+                      height: `calc(${heightPercent}% - 8px)`
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
