@@ -40,6 +40,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const [dragCurrentRegion, setDragCurrentRegion] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [hoveredTimeRange, setHoveredTimeRange] = useState(null)
+  const [resizingEntry, setResizingEntry] = useState(null)
+  const [resizeEdge, setResizeEdge] = useState(null)
   const gridRef = useRef(null)
   const businessWeekDates = getBusinessWeekDates()
 
@@ -106,11 +108,38 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   }
 
   const handleSlotMouseEnterDrag = (date, slotMinutes) => {
+    if (resizingEntry && resizeEdge) {
+      const updatedEntry = { ...resizingEntry }
+      if (resizeEdge === 'top') {
+        const endMinutes = timeToMinutes(resizingEntry.endTime)
+        if (slotMinutes < endMinutes) {
+          updatedEntry.startTime = minutesToTime(slotMinutes)
+          setResizingEntry(updatedEntry)
+          onUpdateEntry(updatedEntry)
+        }
+      } else {
+        const startMinutes = timeToMinutes(resizingEntry.startTime)
+        if (slotMinutes + intervalMinutes > startMinutes) {
+          updatedEntry.endTime = minutesToTime(slotMinutes + intervalMinutes)
+          setResizingEntry(updatedEntry)
+          onUpdateEntry(updatedEntry)
+        }
+      }
+      return
+    }
+    
     if (!isDragging || !dragStartRegion) return
     setDragCurrentRegion({ date, minutes: slotMinutes })
   }
 
   const handleMouseUp = () => {
+    if (resizingEntry) {
+      setResizingEntry(null)
+      setResizeEdge(null)
+      setIsDragging(false)
+      return
+    }
+
     if (!isDragging || !dragStartRegion || !dragCurrentRegion) {
       setDragStartRegion(null)
       setDragCurrentRegion(null)
@@ -139,6 +168,26 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     setDragCurrentRegion(null)
     setIsDragging(false)
   }
+
+  const handleResizeMouseDown = (e, entry, edge, dateKey) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setResizingEntry({ ...entry, dateKey })
+    setResizeEdge(edge)
+    setIsDragging(true)
+  }
+
+  useEffect(() => {
+    if (resizingEntry) {
+      const handleUp = () => handleMouseUp()
+      
+      window.addEventListener('mouseup', handleUp)
+      
+      return () => {
+        window.removeEventListener('mouseup', handleUp)
+      }
+    }
+  }, [resizingEntry, resizeEdge])
 
   const handleEntryMouseEnter = (entry) => {
     const startMin = timeToMinutes(entry.startTime)
@@ -262,7 +311,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                     className={`calendar-entry ${entry.disabled ? 'disabled' : ''}`}
                     style={{
                       top: `${topPercent}%`,
-                      height: `calc(${heightPercent}% - 8px)`
+                      height: `calc(${heightPercent}% - 8px)`,
+                      pointerEvents: resizingEntry && resizingEntry.id === entry.id ? 'none' : 'auto'
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -271,6 +321,12 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                     onMouseEnter={() => handleEntryMouseEnter(entry)}
                     onMouseLeave={handleEntryMouseLeave}
                   >
+                    <div 
+                      className="entry-resize-handle entry-resize-top"
+                      onMouseDown={(e) => handleResizeMouseDown(e, entry, 'top', dateKey)}
+                      title="Drag to adjust start time"
+                      style={{ pointerEvents: 'auto' }}
+                    />
                     <div className="entry-client">{entry.client}</div>
                     <div className="entry-ticket">{entry.ticket}</div>
                     <div className="entry-description">{entry.description}</div>
@@ -284,6 +340,12 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                     >
                       ✕
                     </button>
+                    <div 
+                      className="entry-resize-handle entry-resize-bottom"
+                      onMouseDown={(e) => handleResizeMouseDown(e, entry, 'bottom', dateKey)}
+                      title="Drag to adjust end time"
+                      style={{ pointerEvents: 'auto' }}
+                    />
                   </div>
                 )
               })}

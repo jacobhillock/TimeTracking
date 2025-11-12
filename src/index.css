@@ -617,6 +617,34 @@ body.dark-mode .calendar-hour-slot {
   background: #ccc;
 }
 
+.entry-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.entry-resize-top {
+  top: 0;
+}
+
+.entry-resize-bottom {
+  bottom: 0;
+}
+
+.calendar-entry:hover .entry-resize-handle {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.entry-resize-handle:hover {
+  background: rgba(255, 255, 255, 0.5) !important;
+}
+
 .entry-client {
   font-weight: 600;
 }
