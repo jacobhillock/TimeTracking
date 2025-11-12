@@ -704,6 +704,12 @@ function App() {
     })
   }
 
+  const getSummaryTotalHours = () => {
+    const summary = getSummary()
+    const totalMinutes = summary.reduce((acc, item) => acc + item.minutes, 0)
+    return (totalMinutes / 60).toFixed(2)
+  }
+
   const getClientTotals = () => {
     const dayEntries = entries[dateKey] || []
     const clientTotals = {}
@@ -912,7 +918,7 @@ function App() {
         <div className="sidebar-container">
         <div className="sidebar">
         <CollapsibleSection 
-          title="Ticket Summaries" 
+          title={`Ticket Summaries (Total: ${getSummaryTotalHours()}h)`}
           sectionName="summary"
           isCollapsed={collapsedSections.summary}
           onToggle={() => toggleSection('summary')}
