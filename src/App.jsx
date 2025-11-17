@@ -997,6 +997,9 @@ function App() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="summary-link"
+                          onClick={(e) => {
+                            navigator.clipboard.writeText(item.hours + 'h')
+                          }}
                         >
                           {item.key}
                         </a>
