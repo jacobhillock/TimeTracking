@@ -327,8 +327,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                       title="Drag to adjust start time"
                       style={{ pointerEvents: 'auto' }}
                     />
-                    <div className="entry-client">{entry.client}</div>
-                    <div className="entry-ticket">{entry.ticket}</div>
+                    <div className="entry-client">{entry.client}{entry.ticket ? `-${entry.ticket}` : ''}</div>
                     <div className="entry-description">{entry.description}</div>
                     <button
                       className="entry-delete"
