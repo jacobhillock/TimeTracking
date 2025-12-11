@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { migrateFromLocalStorage } from './services/db'
 import { getAllEntries, setEntriesForDay } from './services/timeEntryService'
+import SearchModal from './SearchModal'
 
 function Chevron({ isCollapsed }) {
   return (
@@ -463,6 +464,7 @@ function App() {
     return saved ? JSON.parse(saved) : {}
   })
   const [newClient, setNewClient] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const isInitialMount = useRef(true)
 
   const dateKey = currentDate.toISOString().split('T')[0]
@@ -844,8 +846,24 @@ function App() {
     }))
   }
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'q') {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [])
+
   return (
     <div className="app">
+      <SearchModal 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+      />
       <div className="main-content">
         <button 
           className="sidebar-toggle-button"
@@ -885,6 +903,13 @@ function App() {
                 className="date-picker-input"
               />
             </div>
+            <button 
+              className="search-button"
+              onClick={() => setIsSearchOpen(true)}
+              title="Search entries (Ctrl/Cmd+Q)"
+            >
+              🔍
+            </button>
           </div>
         </div>
 
