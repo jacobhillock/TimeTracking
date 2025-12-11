@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { migrateFromLocalStorage } from './services/db'
+import { getAllEntries, setEntriesForDay } from './services/timeEntryService'
 
 function Chevron({ isCollapsed }) {
   return (
@@ -421,10 +423,8 @@ function App() {
     const saved = localStorage.getItem('currentView')
     return saved || 'task'
   })
-  const [entries, setEntries] = useState(() => {
-    const saved = localStorage.getItem('timeEntries')
-    return saved ? JSON.parse(saved) : {}
-  })
+  const [entries, setEntries] = useState({})
+  const [isLoadingEntries, setIsLoadingEntries] = useState(true)
   const [clients, setClients] = useState(() => {
     const saved = localStorage.getItem('clients')
     return saved ? JSON.parse(saved) : []
@@ -472,11 +472,27 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('timeEntries', JSON.stringify(entries))
-      console.log('Saved entries to localStorage:', entries)
+    async function initializeDB() {
+      try {
+        await migrateFromLocalStorage()
+        const allEntries = await getAllEntries()
+        setEntries(allEntries)
+        console.log('Loaded entries from IndexedDB:', allEntries)
+      } catch (error) {
+        console.error('Failed to initialize database:', error)
+        const saved = localStorage.getItem('timeEntries')
+        if (saved) {
+          setEntries(JSON.parse(saved))
+        }
+      } finally {
+        setIsLoadingEntries(false)
+      }
     }
-  }, [entries])
+    
+    initializeDB()
+  }, [])
+
+
 
   useEffect(() => {
     if (!isInitialMount.current) {
@@ -559,6 +575,10 @@ function App() {
   const updateDayEntries = (newEntries, specificDateKey = null) => {
     const key = specificDateKey || dateKey
     setEntries(prev => ({ ...prev, [key]: newEntries }))
+    
+    setEntriesForDay(key, newEntries).catch(error => {
+      console.error('Failed to sync entries to IndexedDB:', error)
+    })
   }
 
   const addCalendarEntry = (specificDateKey, newEntry) => {
