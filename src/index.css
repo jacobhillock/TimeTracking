@@ -1168,3 +1168,174 @@ body.dark-mode .modal-field-checkbox {
   cursor: pointer;
   margin: 0;
 }
+
+/* Client Color Picker Styles */
+.client-item-with-color {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.client-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.client-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.client-color-picker input[type="color"] {
+  width: 40px;
+  height: 30px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+body.dark-mode .client-color-picker input[type="color"] {
+  border-color: #555;
+}
+
+.color-preview {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Search Result Navigation Styles */
+.search-result-item.clickable {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-result-item.clickable:hover {
+  transform: translateX(4px);
+}
+
+.search-result-item.already-viewing {
+  position: relative;
+  opacity: 0.7;
+  cursor: default;
+}
+
+.search-result-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #4CAF50;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+body.dark-mode .search-result-tooltip {
+  background: #66BB6A;
+}
+
+.search-confirmation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001;
+  animation: fadeIn 0.2s ease;
+}
+
+.search-confirmation-dialog {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+body.dark-mode .search-confirmation-dialog {
+  background: #2a2a2a;
+}
+
+.search-confirmation-dialog h3 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+}
+
+.search-confirmation-dialog p {
+  margin: 0 0 20px 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+body.dark-mode .search-confirmation-dialog p {
+  color: #aaa;
+}
+
+.confirmation-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.btn-confirm,
+.btn-cancel-confirm {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm {
+  background: #2196F3;
+  color: white;
+}
+
+.btn-confirm:hover {
+  background: #1976D2;
+}
+
+.btn-cancel-confirm {
+  background: #f5f5f5;
+  color: #333;
+}
+
+body.dark-mode .btn-cancel-confirm {
+  background: #3a3a3a;
+  color: #e0e0e0;
+}
+
+.btn-cancel-confirm:hover {
+  background: #e0e0e0;
+}
+
+body.dark-mode .btn-cancel-confirm:hover {
+  background: #4a4a4a;
+}

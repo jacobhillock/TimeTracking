@@ -11,6 +11,29 @@ function Chevron({ isCollapsed }) {
   )
 }
 
+function getContrastColor(hexColor) {
+  // Convert hex to RGB
+  const hex = hexColor.replace('#', '')
+  const r = parseInt(hex.substr(0, 2), 16)
+  const g = parseInt(hex.substr(2, 2), 16)
+  const b = parseInt(hex.substr(4, 2), 16)
+  
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  
+  // Return white for dark colors, black for light colors
+  return luminance > 0.5 ? '#000000' : '#ffffff'
+}
+
+function adjustColorBrightness(hexColor, percent) {
+  const hex = hexColor.replace('#', '')
+  const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + percent))
+  const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + percent))
+  const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + percent))
+  
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')
+}
+
 function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, children }) {
   const contentRef = useRef(null)
   const [maxHeight, setMaxHeight] = useState('none')
@@ -38,7 +61,7 @@ function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, childre
   )
 }
 
-function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry }) {
+function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry }) {
   const [dragStartRegion, setDragStartRegion] = useState(null)
   const [dragCurrentRegion, setDragCurrentRegion] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -309,6 +332,10 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                 const topPercent = ((clampedStart - visibleStart) / visibleDuration) * 100
                 const heightPercent = ((clampedEnd - clampedStart) / visibleDuration) * 100
                 
+                const clientColor = entry.client && clientColors[entry.client] ? clientColors[entry.client] : '#2196F3'
+                const textColor = getContrastColor(clientColor)
+                const borderColor = adjustColorBrightness(clientColor, -30)
+                
                 return (
                   <div
                     key={entry.id}
@@ -316,7 +343,11 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                     style={{
                       top: `${topPercent}%`,
                       height: `calc(${heightPercent}% - 8px)`,
-                      pointerEvents: resizingEntry && resizingEntry.id === entry.id ? 'none' : 'auto'
+                      pointerEvents: resizingEntry && resizingEntry.id === entry.id ? 'none' : 'auto',
+                      backgroundColor: clientColor,
+                      color: textColor,
+                      borderColor: borderColor,
+                      opacity: entry.disabled ? 0.5 : 1
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -329,7 +360,10 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                       className="entry-resize-handle entry-resize-top"
                       onMouseDown={(e) => handleResizeMouseDown(e, entry, 'top', dateKey)}
                       title="Drag to adjust start time"
-                      style={{ pointerEvents: 'auto' }}
+                      style={{ 
+                        pointerEvents: 'auto',
+                        backgroundColor: borderColor
+                      }}
                     />
                     <div className="entry-client">{entry.client}{entry.ticket ? `-${entry.ticket}` : ''}</div>
                     <div className="entry-description">{entry.description}</div>
@@ -340,6 +374,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                         e.stopPropagation()
                         onDeleteEntry(dateKey, entry.id)
                       }}
+                      style={{ color: textColor }}
                     >
                       ✕
                     </button>
@@ -347,7 +382,10 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                       className="entry-resize-handle entry-resize-bottom"
                       onMouseDown={(e) => handleResizeMouseDown(e, entry, 'bottom', dateKey)}
                       title="Drag to adjust end time"
-                      style={{ pointerEvents: 'auto' }}
+                      style={{ 
+                        pointerEvents: 'auto',
+                        backgroundColor: borderColor
+                      }}
                     />
                   </div>
                 )
@@ -449,6 +487,10 @@ function App() {
   const [clients, setClients] = useState(() => {
     const saved = localStorage.getItem('clients')
     return saved ? JSON.parse(saved) : []
+  })
+  const [clientColors, setClientColors] = useState(() => {
+    const saved = localStorage.getItem('clientColors')
+    return saved ? JSON.parse(saved) : {}
   })
   const [jiraBaseUrl, setJiraBaseUrl] = useState(() => {
     const saved = localStorage.getItem('jiraBaseUrl')
@@ -561,6 +603,13 @@ function App() {
       console.log('Saved clients to localStorage:', clients)
     }
   }, [clients])
+
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      localStorage.setItem('clientColors', JSON.stringify(clientColors))
+      console.log('Saved clientColors to localStorage:', clientColors)
+    }
+  }, [clientColors])
 
   useEffect(() => {
     if (!isInitialMount.current) {
@@ -921,7 +970,12 @@ function App() {
     <div className="app">
       <SearchModal 
         isOpen={isSearchOpen} 
-        onClose={() => setIsSearchOpen(false)} 
+        onClose={() => setIsSearchOpen(false)}
+        currentDate={currentDate}
+        currentView={currentView}
+        onNavigateToDate={(date) => {
+          setCurrentDate(new Date(date + 'T12:00:00'))
+        }}
       />
       <div className="main-content">
         <button 
@@ -1069,6 +1123,7 @@ function App() {
             onUpdateEntry={updateCalendarEntry}
             onDeleteEntry={deleteCalendarEntry}
             clients={clients}
+            clientColors={clientColors}
             defaultStartTime={defaultStartTime}
             intervalMinutes={calendarInterval}
             calendarStartTime={calendarStartTime}
@@ -1164,15 +1219,34 @@ function App() {
               const clientTotals = getClientTotals()
               const totalHours = clientTotals[client] ? (clientTotals[client] / 60).toFixed(2) : '0.00'
               return (
-                <li key={client} className="client-item">
-                  <span>
-                    {client}
-                    {clientTotals[client] && clientTotals[client] > 0 && (
-                      <span style={{ color: '#999', fontSize: '12px', marginLeft: '8px' }}>
-                        ({totalHours}h)
-                      </span>
-                    )}
-                  </span>
+                <li key={client} className="client-item client-item-with-color">
+                  <div className="client-info">
+                    <span>
+                      {client}
+                      {clientTotals[client] && clientTotals[client] > 0 && (
+                        <span style={{ color: '#999', fontSize: '12px', marginLeft: '8px' }}>
+                          ({totalHours}h)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="client-color-picker">
+                    <input
+                      type="color"
+                      value={clientColors[client] || '#2196F3'}
+                      onChange={(e) => setClientColors({ ...clientColors, [client]: e.target.value })}
+                      title="Set client color"
+                    />
+                    <div 
+                      className="color-preview"
+                      style={{ 
+                        backgroundColor: clientColors[client] || '#2196F3',
+                        color: getContrastColor(clientColors[client] || '#2196F3')
+                      }}
+                    >
+                      Aa
+                    </div>
+                  </div>
                   <button onClick={() => removeClient(client)}>Remove</button>
                 </li>
               )
