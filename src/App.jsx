@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { migrateFromLocalStorage } from './services/db'
-import { getAllEntries, setEntriesForDay } from './services/timeEntryService'
+import { getEntriesForDay, getEntriesForDays, setEntriesForDay } from './services/timeEntryService'
 import SearchModal from './SearchModal'
 
 function Chevron({ isCollapsed }) {
@@ -162,7 +162,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
       client: '',
       ticket: '',
       description: '',
-      disabled: false
+      disabled: false,
+      isNew: true
     }
 
     onAddEntry(dateKey, newEntry)
@@ -357,15 +358,16 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
       </div>
 
       {editingEntry && (
-        <div className="calendar-modal-overlay" onClick={() => onEditEntry(null)}>
+        <div className="calendar-modal-overlay">
           <div className="calendar-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Edit Entry</h3>
+            <h3>{editingEntry.isNew ? 'New Entry' : 'Edit Entry'}</h3>
             <div className="modal-field">
               <label>Start Time</label>
               <input
                 type="time"
                 value={editingEntry.startTime}
                 onChange={(e) => onEditEntry({ ...editingEntry, startTime: e.target.value })}
+                tabIndex="1"
               />
             </div>
             <div className="modal-field">
@@ -374,6 +376,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                 type="time"
                 value={editingEntry.endTime}
                 onChange={(e) => onEditEntry({ ...editingEntry, endTime: e.target.value })}
+                tabIndex="2"
               />
             </div>
             <div className="modal-field">
@@ -381,6 +384,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               <select
                 value={editingEntry.client}
                 onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value })}
+                tabIndex="3"
               >
                 <option value="">Select Client</option>
                 {clients.map(client => (
@@ -394,6 +398,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                 type="text"
                 value={editingEntry.ticket}
                 onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value })}
+                tabIndex="4"
               />
             </div>
             <div className="modal-field">
@@ -402,14 +407,29 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                 value={editingEntry.description}
                 onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value })}
                 rows="3"
+                tabIndex="5"
               />
             </div>
+            <div className="modal-field modal-field-checkbox">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={editingEntry.disabled || false}
+                  onChange={(e) => onEditEntry({ ...editingEntry, disabled: e.target.checked })}
+                  tabIndex="6"
+                />
+                Logged
+              </label>
+            </div>
             <div className="modal-buttons">
-              <button className="btn-cancel" onClick={() => onEditEntry(null)}>Cancel</button>
+              {!editingEntry.isNew && (
+                <button className="btn-cancel" onClick={() => onEditEntry(null)} tabIndex="8">Cancel</button>
+              )}
               <button className="btn-save" onClick={() => {
-                onUpdateEntry(editingEntry)
+                const { isNew, ...entryToSave } = editingEntry
+                onUpdateEntry(entryToSave)
                 onEditEntry(null)
-              }}>Save</button>
+              }} tabIndex="7">Save</button>
             </div>
           </div>
         </div>
@@ -477,22 +497,61 @@ function App() {
     async function initializeDB() {
       try {
         await migrateFromLocalStorage()
-        const allEntries = await getAllEntries()
-        setEntries(allEntries)
-        console.log('Loaded entries from IndexedDB:', allEntries)
+        setIsLoadingEntries(false)
+        console.log('Database initialized and migration complete')
       } catch (error) {
         console.error('Failed to initialize database:', error)
         const saved = localStorage.getItem('timeEntries')
         if (saved) {
           setEntries(JSON.parse(saved))
         }
-      } finally {
         setIsLoadingEntries(false)
       }
     }
     
     initializeDB()
   }, [])
+
+  useEffect(() => {
+    async function loadCurrentDayEntries() {
+      if (isLoadingEntries) return
+      
+      if (currentView === 'task') {
+        // Task view: load only current day
+        if (!entries[dateKey]) {
+          const dayEntries = await getEntriesForDay(dateKey)
+          if (dayEntries.length > 0) {
+            setEntries(prev => ({ ...prev, [dateKey]: dayEntries }))
+          }
+        }
+      } else if (currentView === 'calendar') {
+        // Calendar view: load business week
+        const d = new Date(currentDate)
+        const day = d.getDay()
+        const diff = d.getDate() - day + (day === 0 ? -2 : 1)
+        const monday = new Date(d.setDate(diff))
+        const weekDates = []
+        
+        for (let i = 0; i < 5; i++) {
+          const date = new Date(monday)
+          date.setDate(date.getDate() + i)
+          weekDates.push(date.toISOString().split('T')[0])
+        }
+        
+        // Only fetch dates we don't have yet
+        const datesToFetch = weekDates.filter(date => !entries[date])
+        
+        if (datesToFetch.length > 0) {
+          const weekEntries = await getEntriesForDays(datesToFetch)
+          if (Object.keys(weekEntries).length > 0) {
+            setEntries(prev => ({ ...prev, ...weekEntries }))
+          }
+        }
+      }
+    }
+    
+    loadCurrentDayEntries()
+  }, [currentDate, currentView, isLoadingEntries, dateKey])
 
 
 

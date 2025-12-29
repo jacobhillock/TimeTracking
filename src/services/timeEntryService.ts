@@ -14,6 +14,25 @@ export async function getEntriesForDay(date: string): Promise<TimeEntry[]> {
   }
 }
 
+export async function getEntriesForDays(dates: string[]): Promise<Record<string, TimeEntry[]>> {
+  try {
+    const db = await getDB();
+    const result: Record<string, TimeEntry[]> = {};
+    
+    for (const date of dates) {
+      const entries = await db.get(STORE_NAME, date);
+      if (entries && entries.length > 0) {
+        result[date] = entries;
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Failed to get entries for days:', error);
+    return {};
+  }
+}
+
 export async function getAllEntries(): Promise<Record<string, TimeEntry[]>> {
   try {
     const db = await getDB();
