@@ -1185,6 +1185,9 @@ function App() {
                       type="checkbox"
                       checked={item.allDisabled}
                       onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
+                      style={{
+                        marginBottom: '0',
+                      }}
                       title="Toggle all entries for this ticket"
                     />
                   </div>
@@ -1235,6 +1238,9 @@ function App() {
                       type="color"
                       value={clientColors[client] || '#2196F3'}
                       onChange={(e) => setClientColors({ ...clientColors, [client]: e.target.value })}
+                      style={{
+                        marginBottom: '0',
+                      }}
                       title="Set client color"
                     />
                     <div 
