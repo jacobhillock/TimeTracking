@@ -71,6 +71,12 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const gridRef = useRef(null)
   const businessWeekDates = getBusinessWeekDates()
 
+  const handleSave = () => {
+    const { isNew, ...entryToSave } = editingEntry
+    onUpdateEntry(entryToSave)
+    onEditEntry(null)
+  }
+
   function getBusinessWeekDates() {
     const d = new Date(currentDate)
     const day = d.getDay()
@@ -397,7 +403,16 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
 
       {editingEntry && (
         <div className="calendar-modal-overlay">
-          <div className="calendar-modal" onClick={(e) => e.stopPropagation()}>
+          <div 
+            className="calendar-modal" 
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault()
+                handleSave()
+              }
+            }}
+          >
             <h3>{editingEntry.isNew ? 'New Entry' : 'Edit Entry'}</h3>
             <div className="modal-field">
               <label>Start Time</label>
@@ -463,11 +478,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               {!editingEntry.isNew && (
                 <button className="btn-cancel" onClick={() => onEditEntry(null)} tabIndex="8">Cancel</button>
               )}
-              <button className="btn-save" onClick={() => {
-                const { isNew, ...entryToSave } = editingEntry
-                onUpdateEntry(entryToSave)
-                onEditEntry(null)
-              }} tabIndex="7">Save</button>
+              <button className="btn-save" onClick={handleSave} tabIndex="7">Save</button>
             </div>
           </div>
         </div>
