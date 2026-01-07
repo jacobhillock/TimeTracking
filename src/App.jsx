@@ -1157,7 +1157,7 @@ function App() {
           {getSummary().length > 0 ? (
             <ul className="client-list">
               {getSummary().map(item => (
-                <li key={item.key} className="client-item" style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px' }}>
+                <li key={item.key} className="client-item" style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px', opacity: item.allDisabled ? 0.5 : 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                     <div>
                       {jiraBaseUrl ? (
