@@ -880,6 +880,7 @@ function App() {
             minutes: 0,
             descriptions: [],
             allDisabled: true,
+            someDisabled: false,
             entryIds: []
           }
         }
@@ -887,6 +888,8 @@ function App() {
         summary[key].entryIds.push(entry.id)
         if (!entry.disabled) {
           summary[key].allDisabled = false
+        } else {
+          summary[key].someDisabled = true
         }
         if (entry.description && entry.description.trim()) {
           summary[key].descriptions.push(entry.description.trim())
@@ -897,7 +900,8 @@ function App() {
     const summaryArray = Object.entries(summary).map(([key, data]) => ({
       key,
       ...data,
-      hours: (data.minutes / 60).toFixed(2)
+      hours: (data.minutes / 60).toFixed(2),
+      isIndeterminate: data.someDisabled && !data.allDisabled
     }))
 
     return summaryArray.sort((a, b) => {
@@ -1195,6 +1199,9 @@ function App() {
                     <input
                       type="checkbox"
                       checked={item.allDisabled}
+                      ref={(el) => {
+                        if (el) el.indeterminate = item.isIndeterminate
+                      }}
                       onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
                       style={{
                         marginBottom: '0',
