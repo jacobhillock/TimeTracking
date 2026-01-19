@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:local": "INCLUDE_BASE=1 bun run build",
     "preview": "vite preview"
   },
   "devDependencies": {
