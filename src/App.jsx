@@ -68,12 +68,28 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const [hoveredTimeRange, setHoveredTimeRange] = useState(null)
   const [resizingEntry, setResizingEntry] = useState(null)
   const [resizeEdge, setResizeEdge] = useState(null)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const gridRef = useRef(null)
   const businessWeekDates = getBusinessWeekDates()
 
   const handleSave = () => {
     const { isNew, ...entryToSave } = editingEntry
     onUpdateEntry(entryToSave)
+    onEditEntry(null)
+  }
+
+  const handleDiscardNewEntry = () => {
+    if (editingEntry && editingEntry.isNew) {
+      // Find which date the entry belongs to and remove it
+      for (const dateKey in entries) {
+        const dayEntries = entries[dateKey]
+        if (dayEntries && dayEntries.some(e => e.id === editingEntry.id)) {
+          onDeleteEntry(dateKey, editingEntry.id)
+          break
+        }
+      }
+    }
+    setShowCloseConfirm(false)
     onEditEntry(null)
   }
 
@@ -475,10 +491,25 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               </label>
             </div>
             <div className="modal-buttons">
-              {!editingEntry.isNew && (
+              {editingEntry.isNew ? (
+                <button className="btn-cancel" onClick={() => setShowCloseConfirm(true)} tabIndex="8">Discard</button>
+              ) : (
                 <button className="btn-cancel" onClick={() => onEditEntry(null)} tabIndex="8">Cancel</button>
               )}
               <button className="btn-save" onClick={handleSave} tabIndex="7">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCloseConfirm && (
+        <div className="calendar-modal-overlay" onClick={() => setShowCloseConfirm(false)}>
+          <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Discard Entry?</h3>
+            <p>Are you sure you want to discard this new entry? This action cannot be undone.</p>
+            <div className="modal-buttons">
+              <button className="btn-cancel" onClick={() => setShowCloseConfirm(false)}>Cancel</button>
+              <button className="btn-save" onClick={handleDiscardNewEntry}>Discard</button>
             </div>
           </div>
         </div>
@@ -1236,7 +1267,18 @@ function App() {
             Add Client
           </button>
           <ul className="client-list">
-            {clients.map(client => {
+            {clients
+              .sort((a, b) => {
+                const clientTotals = getClientTotals()
+                const aTotals = clientTotals[a] || 0
+                const bTotals = clientTotals[b] || 0
+                // Clients with time first
+                if (aTotals > 0 && bTotals === 0) return -1
+                if (aTotals === 0 && bTotals > 0) return 1
+                // Then alphabetically
+                return a.localeCompare(b)
+              })
+              .map(client => {
               const clientTotals = getClientTotals()
               const totalHours = clientTotals[client] ? (clientTotals[client] / 60).toFixed(2) : '0.00'
               return (
