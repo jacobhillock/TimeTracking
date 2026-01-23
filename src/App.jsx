@@ -572,6 +572,9 @@ function App() {
   })
   const [newClient, setNewClient] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [clickedSummary, setClickedSummary] = useState(null)
+  const [showLogPrompt, setShowLogPrompt] = useState(false)
+  const windowWasBlurred = useRef(false)
   const isInitialMount = useRef(true)
 
   const dateKey = currentDate.toISOString().split('T')[0]
@@ -579,6 +582,27 @@ function App() {
   useEffect(() => {
     isInitialMount.current = false
   }, [])
+
+  useEffect(() => {
+    const handleBlur = () => {
+      windowWasBlurred.current = true
+    }
+
+    const handleFocus = () => {
+      if (windowWasBlurred.current && clickedSummary && !clickedSummary.allDisabled) {
+        setShowLogPrompt(true)
+      }
+      windowWasBlurred.current = false
+    }
+
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [clickedSummary])
 
   useEffect(() => {
     async function initializeDB() {
@@ -983,6 +1007,14 @@ function App() {
     updateDayEntries(updatedEntries)
   }
 
+  const handleMarkAsLogged = () => {
+    if (clickedSummary) {
+      toggleSummaryEntries(clickedSummary.entryIds, true)
+      setClickedSummary(null)
+    }
+    setShowLogPrompt(false)
+  }
+
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
@@ -1195,7 +1227,11 @@ function App() {
           {getSummary().length > 0 ? (
             <ul className="client-list">
               {getSummary().map(item => (
-                <li key={item.key} className="client-item" style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px', opacity: item.allDisabled ? 0.5 : 1 }}>
+                <li 
+                  key={item.key} 
+                  className="client-item" 
+                  style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px', opacity: item.allDisabled ? 0.5 : 1 }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                     <div>
                       {jiraBaseUrl ? (
@@ -1206,6 +1242,7 @@ function App() {
                           className="summary-link"
                           onClick={(e) => {
                             navigator.clipboard.writeText(item.hours + 'h')
+                            setClickedSummary(item)
                           }}
                         >
                           {item.key}
@@ -1410,6 +1447,19 @@ function App() {
         </div>
       </div>
       </div>
+      )}
+
+      {showLogPrompt && clickedSummary && (
+        <div className="calendar-modal-overlay" onClick={() => setShowLogPrompt(false)}>
+          <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Mark as Logged?</h3>
+            <p>Would you like to mark <strong>{clickedSummary.key}</strong> as logged?</p>
+            <div className="modal-buttons">
+              <button className="btn-cancel" onClick={() => setShowLogPrompt(false)}>No</button>
+              <button className="btn-save" onClick={handleMarkAsLogged}>Yes, Mark as Logged</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
