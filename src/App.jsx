@@ -1455,7 +1455,7 @@ function App() {
             <h3>Mark as Logged?</h3>
             <p>Would you like to mark <strong>{clickedSummary.key}</strong> as logged?</p>
             <div className="modal-buttons">
-              <button className="btn-cancel" onClick={() => setShowLogPrompt(false)}>No</button>
+              <button className="btn-cancel" onClick={() => { setShowLogPrompt(false); setClickedSummary(null); }}>No</button>
               <button className="btn-save" onClick={handleMarkAsLogged}>Yes, Mark as Logged</button>
             </div>
           </div>
