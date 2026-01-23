@@ -345,6 +345,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               {dayEntries.map(entry => {
                 const startMin = timeToMinutes(entry.startTime)
                 const endMin = timeToMinutes(entry.endTime)
+                const durationHours = ((endMin - startMin) / 60).toFixed(2)
                 
                 if (endMin < visibleStart || startMin > visibleEnd) return null
 
@@ -387,7 +388,9 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                         backgroundColor: borderColor
                       }}
                     />
-                    <div className="entry-client">{entry.client}{entry.ticket ? `-${entry.ticket}` : ''}</div>
+                    <div className="entry-client">
+                      {entry.client}{entry.ticket ? `-${entry.ticket}` : ''} <span style={{ fontSize: '0.85em', opacity: 0.8 }}>(time: {durationHours}h)</span>
+                    </div>
                     <div className="entry-description">{entry.description}</div>
                     <button
                       className="entry-delete"
