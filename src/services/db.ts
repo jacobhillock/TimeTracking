@@ -1,15 +1,20 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
-import type { TimeEntry, DayEntries } from './types';
+import type { TimeEntry, DayEntries, Todo } from './types';
 
 const DB_NAME = 'timeTrackerDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'timeEntries';
+const TODO_STORE_NAME = 'todos';
 
 interface TimeTrackerDB extends DBSchema {
   [STORE_NAME]: {
     key: string; // yyyy-MM-dd format
     value: TimeEntry[];
+  };
+  [TODO_STORE_NAME]: {
+    key: number;
+    value: Todo;
   };
 }
 
@@ -28,6 +33,11 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
             db.deleteObjectStore(STORE_NAME);
           }
           db.createObjectStore(STORE_NAME);
+        }
+        if (oldVersion < 3) {
+          if (!db.objectStoreNames.contains(TODO_STORE_NAME)) {
+            db.createObjectStore(TODO_STORE_NAME, { autoIncrement: true });
+          }
         }
       },
     });
