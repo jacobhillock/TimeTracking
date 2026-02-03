@@ -5,14 +5,17 @@ export async function getAllTodos(dateKey: string): Promise<Todo[]> {
   try {
     const db = await getDB();
     const keys = await db.getAllKeys(TODO_STORE_NAME);
+    const tx = db.transaction(TODO_STORE_NAME, 'readonly');
     const todos: Todo[] = [];
     
     for (const key of keys) {
-      const todo = await db.get(TODO_STORE_NAME, key);
-      if (todo && todo.completed && todo.completedDate !== dateKey) {
+      const todo = await tx.store.get(key);
+      if (todo && (!todo.completed || (todo.completed && todo.completedDate === dateKey))) {
         todos.push({ ...todo, id: key as number });
       }
     }
+
+    await tx.done;
     
     return todos;
   } catch (error) {
