@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { migrateFromLocalStorage } from './services/db'
 import { getEntriesForDay, getEntriesForDays, setEntriesForDay } from './services/timeEntryService'
+import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
 import SearchModal from './SearchModal'
 
 function Chevron({ isCollapsed }) {
@@ -574,6 +575,14 @@ function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [clickedSummary, setClickedSummary] = useState(null)
   const [showLogPrompt, setShowLogPrompt] = useState(false)
+  const [todos, setTodos] = useState([])
+  const [newTodoDescription, setNewTodoDescription] = useState('')
+  const [newTodoClient, setNewTodoClient] = useState('')
+  const [newTodoTicket, setNewTodoTicket] = useState('')
+  const [editingTodoId, setEditingTodoId] = useState(null)
+  const [editTodoDescription, setEditTodoDescription] = useState('')
+  const [editTodoClient, setEditTodoClient] = useState('')
+  const [editTodoTicket, setEditTodoTicket] = useState('')
   const windowWasBlurred = useRef(false)
   const isInitialMount = useRef(true)
 
@@ -744,6 +753,14 @@ function App() {
     }
   }, [calendarEndTime])
 
+  useEffect(() => {
+    const loadTodos = async () => {
+      const filteredTodos = await getAllTodos(dateKey)
+      setTodos(filteredTodos)
+    }
+    loadTodos()
+  }, [dateKey])
+
   const getDayEntries = () => {
     if (currentView === 'task') {
       return entries[dateKey] || []
@@ -908,6 +925,85 @@ function App() {
 
   const removeClient = (client) => {
     setClients(clients.filter(c => c !== client))
+  }
+
+  const handleAddTodo = async () => {
+    if (newTodoDescription.trim()) {
+      const newTodo = await addTodo(
+        newTodoDescription.trim(),
+        newTodoClient.trim() || undefined,
+        newTodoTicket.trim() || undefined,
+        dateKey
+      )
+      if (newTodo) {
+        console.log('Todo added:', newTodo)
+        const filteredTodos = await getAllTodos(dateKey)
+        setTodos(filteredTodos)
+        setNewTodoDescription('')
+        setNewTodoClient('')
+        setNewTodoTicket('')
+      }
+    }
+  }
+
+  const handleToggleTodo = async (id) => {
+    console.log('Toggling todo:', id)
+    const success = await toggleTodoCompletion(id)
+    console.log('Toggle result:', success)
+    if (success) {
+      const filteredTodos = await getAllTodos(dateKey)
+      console.log('Refetched todos:', filteredTodos)
+      setTodos(filteredTodos)
+    }
+  }
+
+  const handleDeleteTodo = async (id) => {
+    console.log('Deleting todo:', id)
+    const success = await deleteTodo(id)
+    console.log('Delete result:', success)
+    if (success) {
+      const filteredTodos = await getAllTodos(dateKey)
+      setTodos(filteredTodos)
+    }
+  }
+
+  const handleStartEditTodo = (todo) => {
+    setEditingTodoId(todo.id)
+    setEditTodoDescription(todo.description)
+    setEditTodoClient(todo.client || '')
+    setEditTodoTicket(todo.ticket || '')
+  }
+
+  const handleSaveEditTodo = async () => {
+    if (editTodoDescription.trim()) {
+      const success = await updateTodo(
+        editingTodoId,
+        editTodoDescription.trim(),
+        editTodoClient.trim() || undefined,
+        editTodoTicket.trim() || undefined
+      )
+      if (success) {
+        const filteredTodos = await getAllTodos(dateKey)
+        setTodos(filteredTodos)
+        setEditingTodoId(null)
+        setEditTodoDescription('')
+        setEditTodoClient('')
+        setEditTodoTicket('')
+      }
+    }
+  }
+
+  const handleCancelEditTodo = () => {
+    setEditingTodoId(null)
+    setEditTodoDescription('')
+    setEditTodoClient('')
+    setEditTodoTicket('')
+  }
+
+  const getSortedTodos = () => {
+    const uncompleted = todos.filter(t => !t.completed).sort((a, b) => b.id - a.id)
+    const completed = todos.filter(t => t.completed).sort((a, b) => b.id - a.id)
+    return [...uncompleted, ...completed]
   }
 
   const getJiraUrl = (client, ticket) => {
@@ -1291,7 +1387,171 @@ function App() {
         </CollapsibleSection>
 
         <CollapsibleSection 
-          title="Clients" 
+          title="Todo" 
+          sectionName="todo"
+          isCollapsed={collapsedSections.todo}
+          onToggle={() => toggleSection('todo')}
+        >
+          <div className="todo-form" style={{ marginBottom: '15px' }}>
+            <input
+              type="text"
+              placeholder="Todo description"
+              value={newTodoDescription}
+              onChange={(e) => setNewTodoDescription(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
+              style={{ marginBottom: '8px' }}
+            />
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <select
+                value={newTodoClient}
+                onChange={(e) => setNewTodoClient(e.target.value)}
+                className="todo-form-field"
+                style={{ flex: 1 }}
+              >
+                <option value="">Optional client</option>
+                {clients.map(client => (
+                  <option key={client} value={client}>{client}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Ticket #"
+                value={newTodoTicket}
+                onChange={(e) => setNewTodoTicket(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
+                className="todo-form-field"
+                style={{ flex: 1 }}
+              />
+            </div>
+            <button className="add-button" onClick={handleAddTodo}>
+              Add Todo
+            </button>
+          </div>
+
+          {getSortedTodos().length > 0 ? (
+            <ul className="client-list">
+              {getSortedTodos().map(todo => (
+                <li 
+                  key={todo.id} 
+                  className={`client-item todo-item ${todo.completed ? 'todo-completed' : ''}`}
+                  style={{ 
+                    display: 'flex',
+                    flexFlow: 'column',
+                    gap: '8px',
+                    opacity: todo.completed ? 0.5 : 1,
+                    position: 'relative'
+                  }}
+                >
+                  {editingTodoId === todo.id ? (
+                    <>
+                      <div>
+                        <input
+                          type="text"
+                          value={editTodoDescription}
+                          onChange={(e) => setEditTodoDescription(e.target.value)}
+                          style={{ width: '100%', marginBottom: '8px' }}
+                          placeholder="Todo description"
+                        />
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                          <select
+                            value={editTodoClient}
+                            onChange={(e) => setEditTodoClient(e.target.value)}
+                            className="todo-form-field"
+                            style={{ flex: 1 }}
+                          >
+                            <option value="">Optional client</option>
+                            {clients.map(client => (
+                              <option key={client} value={client}>{client}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Ticket #"
+                            value={editTodoTicket}
+                            onChange={(e) => setEditTodoTicket(e.target.value)}
+                            className="todo-form-field"
+                            style={{ flex: 1 }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%' }}>
+                        <button onClick={handleCancelEditTodo} style={{ padding: '4px 8px', fontSize: '12px', marginLeft: 'auto' }}>
+                          Cancel
+                        </button>
+                        <button onClick={handleSaveEditTodo} style={{ padding: '4px 8px', fontSize: '12px' }}>
+                          Save
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={todo.completed}
+                            onChange={() => handleToggleTodo(todo.id)}
+                            style={{ 
+                              margin: '0',
+                              flexShrink: 0
+                            }}
+                          />
+                        </div>
+                        {(todo.client && todo.ticket) && (
+                          <div style={{ fontSize: '12px', marginLeft: '10px' }}>
+                            {jiraBaseUrl ? (
+                              <a 
+                                href={getJiraUrl(todo.client, todo.ticket)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="summary-link"
+                                style={{ fontSize: '12px' }}
+                              >
+                                {todo.client}-{todo.ticket}
+                              </a>
+                            ) : (
+                              <span style={{ color: '#666' }}>{todo.client}-{todo.ticket}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div 
+                        style={{ 
+                          textDecoration: todo.completed ? 'line-through' : 'none',
+                          paddingRight: '10px',
+                          wordWrap: 'break-word',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => handleStartEditTodo(todo)}
+                        title="Click to edit"
+                      >
+                        {todo.description}
+                      </div>
+                      <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={() => handleDeleteTodo(todo.id)}
+                          style={{ 
+                            padding: '4px 8px', 
+                            fontSize: '12px'
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+              No todos yet
+            </div>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection 
+          title="Client Summaries" 
           sectionName="clients"
           isCollapsed={collapsedSections.clients}
           onToggle={() => toggleSection('clients')}

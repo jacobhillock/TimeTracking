@@ -12,3 +12,13 @@ export interface DayEntries {
   date: string; // yyyy-MM-dd format
   entries: TimeEntry[];
 }
+
+export interface Todo {
+  id: number;
+  description: string;
+  client?: string;
+  ticket?: string;
+  completed: boolean;
+  completedDate?: string; // yyyy-MM-dd format
+  createdDate: string; // yyyy-MM-dd format
+}
