@@ -1,7 +1,5 @@
-import { getDB } from './db';
+import { getDB, TODO_STORE_NAME } from './db';
 import type { Todo } from './types';
-
-const TODO_STORE_NAME = 'todos';
 
 export async function getAllTodos(dateKey: string): Promise<Todo[]> {
   try {
@@ -11,12 +9,8 @@ export async function getAllTodos(dateKey: string): Promise<Todo[]> {
     
     for (const key of keys) {
       const todo = await db.get(TODO_STORE_NAME, key);
-      if (todo) {
-        const todoWithId = { ...todo, id: key as number };
-        // Show uncompleted todos + completed todos where completedDate matches dateKey
-        if (!todoWithId.completed || todoWithId.completedDate === dateKey) {
-          todos.push(todoWithId);
-        }
+      if (todo && todo.completed && todo.completedDate !== dateKey) {
+        todos.push({ ...todo, id: key as number });
       }
     }
     

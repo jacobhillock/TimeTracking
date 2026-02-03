@@ -5,7 +5,7 @@ import type { TimeEntry, DayEntries, Todo } from './types';
 const DB_NAME = 'timeTrackerDB';
 const DB_VERSION = 3;
 const STORE_NAME = 'timeEntries';
-const TODO_STORE_NAME = 'todos';
+export const TODO_STORE_NAME = 'todos';
 
 interface TimeTrackerDB extends DBSchema {
   [STORE_NAME]: {
