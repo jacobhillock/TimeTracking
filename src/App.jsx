@@ -62,7 +62,7 @@ function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, childre
   )
 }
 
-function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey }) {
+function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, isEntryUntracked }) {
   const [dragStartRegion, setDragStartRegion] = useState(null)
   const [dragCurrentRegion, setDragCurrentRegion] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -500,7 +500,11 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                 <input
                   type="checkbox"
                   checked={editingEntry.disabled || false}
-                  onChange={(e) => onEditEntry({ ...editingEntry, disabled: e.target.checked }, editingEntryDateKey)}
+                  disabled={isEntryUntracked?.(editingEntry)}
+                  onChange={(e) => {
+                    if (isEntryUntracked?.(editingEntry) && e.target.checked) return
+                    onEditEntry({ ...editingEntry, disabled: e.target.checked }, editingEntryDateKey)
+                  }}
                   tabIndex="6"
                 />
                 Logged
@@ -1080,8 +1084,9 @@ function App() {
 
     dayEntries.forEach(entry => {
       if (entry.client && entry.startTime && entry.endTime) {
-        const key = entry.ticket ? `${entry.client}-${entry.ticket}` : `${entry.client}-untracked-${entry.id}`
-        const isUntracked = !entry.ticket
+        const ticketTrim = entry.ticket ? entry.ticket.trim() : ''
+        const key = ticketTrim ? `${entry.client}-${ticketTrim}` : `${entry.client}-untracked-${entry.id}`
+        const isUntracked = !ticketTrim
 
         const [startH, startM] = entry.startTime.split(':').map(Number)
         const [endH, endM] = entry.endTime.split(':').map(Number)
@@ -1092,7 +1097,7 @@ function App() {
         if (!summary[key]) {
           summary[key] = {
             client: entry.client,
-            ticket: entry.ticket || '',
+            ticket: ticketTrim,
             minutes: 0,
             descriptions: [],
             allDisabled: true,
@@ -1155,10 +1160,18 @@ function App() {
     return clientTotals
   }
 
+  const isEntryUntracked = (entry) => !entry?.ticket || !entry.ticket.trim()
+
   const toggleSummaryEntries = (entryIds, disabled) => {
     const dayEntries = entries[dateKey] || []
+    const trackedIds = disabled
+      ? entryIds.filter(id => {
+          const entry = dayEntries.find(e => e.id === id)
+          return entry && !isEntryUntracked(entry)
+        })
+      : entryIds
     const updatedEntries = dayEntries.map(entry => {
-      if (entryIds.includes(entry.id)) {
+      if (trackedIds.includes(entry.id)) {
         return { ...entry, disabled }
       }
       return entry
@@ -1282,8 +1295,12 @@ function App() {
                   <input
                     type="checkbox"
                     checked={entry.disabled || false}
-                    onChange={(e) => updateEntry(entry.id, 'disabled', e.target.checked)}
-                    title="Disable this entry"
+                    disabled={isEntryUntracked(entry)}
+                    onChange={(e) => {
+                      if (isEntryUntracked(entry) && e.target.checked) return
+                      updateEntry(entry.id, 'disabled', e.target.checked)
+                    }}
+                    title={isEntryUntracked(entry) ? 'Untracked entries cannot be marked as logged' : 'Mark as logged'}
                   />
                   <input
                     type="time"
@@ -1374,6 +1391,7 @@ function App() {
             }}
             editingEntry={editingEntry}
             editingEntryDateKey={editingEntryDateKey}
+            isEntryUntracked={isEntryUntracked}
           />
         )}
       </div>
