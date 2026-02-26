@@ -115,3 +115,26 @@ export async function deleteDay(date: string): Promise<void> {
     throw new Error('Failed to delete day entries');
   }
 }
+
+function timeToMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function entriesOverlap(a: TimeEntry, b: TimeEntry): boolean {
+  const aStart = timeToMinutes(a.startTime);
+  const aEnd = timeToMinutes(a.endTime);
+  const bStart = timeToMinutes(b.startTime);
+  const bEnd = timeToMinutes(b.endTime);
+  return aStart < bEnd && bStart < aEnd;
+}
+
+export async function findOverlappingEntries(date: string, entry: TimeEntry): Promise<TimeEntry[]> {
+  const dayEntries = await getEntriesForDay(date);
+  return dayEntries.filter((e) => e.id !== entry.id && entriesOverlap(e, entry));
+}
+
+export async function moveEntry(fromDate: string, toDate: string, entry: TimeEntry): Promise<void> {
+  await deleteEntry(fromDate, entry.id);
+  await addEntry(toDate, entry);
+}

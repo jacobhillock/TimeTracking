@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { migrateFromLocalStorage } from './services/db'
-import { getEntriesForDay, getEntriesForDays, setEntriesForDay } from './services/timeEntryService'
+import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
 import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
 import SearchModal from './SearchModal'
 
@@ -62,7 +62,7 @@ function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, childre
   )
 }
 
-function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry }) {
+function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey }) {
   const [dragStartRegion, setDragStartRegion] = useState(null)
   const [dragCurrentRegion, setDragCurrentRegion] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -73,10 +73,13 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const gridRef = useRef(null)
   const businessWeekDates = getBusinessWeekDates()
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const { isNew, ...entryToSave } = editingEntry
-    onUpdateEntry(entryToSave)
-    onEditEntry(null)
+    const targetDateKey = editingEntryDateKey || Object.keys(entries).find((k) => entries[k]?.some((e) => e.id === entryToSave.id))
+    const result = await onUpdateEntry(entryToSave, targetDateKey)
+    if (result?.shouldClose !== false) {
+      onEditEntry(null, null)
+    }
   }
 
   const handleDiscardNewEntry = () => {
@@ -91,7 +94,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
       }
     }
     setShowCloseConfirm(false)
-    onEditEntry(null)
+    onEditEntry(null, null)
   }
 
   function getBusinessWeekDates() {
@@ -213,7 +216,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     }
 
     onAddEntry(dateKey, newEntry)
-    onEditEntry(newEntry)
+    onEditEntry(newEntry, dateKey)
     setDragStartRegion(null)
     setDragCurrentRegion(null)
     setIsDragging(false)
@@ -375,7 +378,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onEditEntry(entry)
+                      onEditEntry(entry, dateKey)
                     }}
                     onMouseEnter={() => handleEntryMouseEnter(entry)}
                     onMouseLeave={handleEntryMouseLeave}
@@ -435,11 +438,20 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
           >
             <h3>{editingEntry.isNew ? 'New Entry' : 'Edit Entry'}</h3>
             <div className="modal-field">
+              <label>Date</label>
+              <input
+                type="date"
+                value={editingEntryDateKey || ''}
+                onChange={(e) => onEditEntry({ ...editingEntry }, e.target.value)}
+                tabIndex="0"
+              />
+            </div>
+            <div className="modal-field">
               <label>Start Time</label>
               <input
                 type="time"
                 value={editingEntry.startTime}
-                onChange={(e) => onEditEntry({ ...editingEntry, startTime: e.target.value })}
+                onChange={(e) => onEditEntry({ ...editingEntry, startTime: e.target.value }, editingEntryDateKey)}
                 tabIndex="1"
               />
             </div>
@@ -448,7 +460,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               <input
                 type="time"
                 value={editingEntry.endTime}
-                onChange={(e) => onEditEntry({ ...editingEntry, endTime: e.target.value })}
+                onChange={(e) => onEditEntry({ ...editingEntry, endTime: e.target.value }, editingEntryDateKey)}
                 tabIndex="2"
               />
             </div>
@@ -456,7 +468,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               <label>Client</label>
               <select
                 value={editingEntry.client}
-                onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value })}
+                onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)}
                 tabIndex="3"
               >
                 <option value="">Select Client</option>
@@ -470,7 +482,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               <input
                 type="text"
                 value={editingEntry.ticket}
-                onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value })}
+                onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)}
                 tabIndex="4"
               />
             </div>
@@ -478,7 +490,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               <label>Description</label>
               <textarea
                 value={editingEntry.description}
-                onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value })}
+                onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)}
                 rows="3"
                 tabIndex="5"
               />
@@ -488,7 +500,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                 <input
                   type="checkbox"
                   checked={editingEntry.disabled || false}
-                  onChange={(e) => onEditEntry({ ...editingEntry, disabled: e.target.checked })}
+                  onChange={(e) => onEditEntry({ ...editingEntry, disabled: e.target.checked }, editingEntryDateKey)}
                   tabIndex="6"
                 />
                 Logged
@@ -498,7 +510,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               {editingEntry.isNew ? (
                 <button className="btn-cancel" onClick={() => setShowCloseConfirm(true)} tabIndex="8">Discard</button>
               ) : (
-                <button className="btn-cancel" onClick={() => onEditEntry(null)} tabIndex="8">Cancel</button>
+                <button className="btn-cancel" onClick={() => onEditEntry(null, null)} tabIndex="8">Cancel</button>
               )}
               <button className="btn-save" onClick={handleSave} tabIndex="7">Save</button>
             </div>
@@ -559,6 +571,8 @@ function App() {
     return saved || '24:00'
   })
   const [editingEntry, setEditingEntry] = useState(null)
+  const [editingEntryDateKey, setEditingEntryDateKey] = useState(null)
+  const [showOverlapConfirm, setShowOverlapConfirm] = useState(null)
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : false
@@ -787,16 +801,63 @@ function App() {
     updateDayEntries(dayEntries.filter(e => e.id !== entryId), specificDateKey)
   }
 
-  const updateCalendarEntry = (updatedEntry) => {
-    for (const dateKey in entries) {
-      const index = entries[dateKey].findIndex(e => e.id === updatedEntry.id)
-      if (index !== -1) {
-        const updated = [...entries[dateKey]]
-        updated[index] = updatedEntry
-        updateDayEntries(updated, dateKey)
-        return
+  const executeMoveAndClose = async () => {
+    if (!showOverlapConfirm) return
+    const { entry, fromDateKey, toDateKey } = showOverlapConfirm
+    await moveEntry(fromDateKey, toDateKey, entry)
+    const fromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== entry.id)
+    const toEntries = entries[toDateKey] || []
+    setEntries((prev) => ({
+      ...prev,
+      [fromDateKey]: fromEntries,
+      [toDateKey]: [...toEntries, entry]
+    }))
+    setShowOverlapConfirm(null)
+    setEditingEntry(null)
+    setEditingEntryDateKey(null)
+  }
+
+  const updateCalendarEntry = async (updatedEntry, newDateKey) => {
+    let fromDateKey = null
+    for (const key in entries) {
+      if (entries[key]?.some((e) => e.id === updatedEntry.id)) {
+        fromDateKey = key
+        break
       }
     }
+    const targetDateKey = newDateKey || fromDateKey
+
+    if (!fromDateKey) {
+      console.warn('Entry not found in entries')
+      return { shouldClose: true }
+    }
+
+    if (targetDateKey === fromDateKey) {
+      const dayEntries = entries[fromDateKey] || []
+      const index = dayEntries.findIndex((e) => e.id === updatedEntry.id)
+      if (index !== -1) {
+        const updated = [...dayEntries]
+        updated[index] = updatedEntry
+        updateDayEntries(updated, fromDateKey)
+      }
+      return { shouldClose: true }
+    }
+
+    const overlapping = await findOverlappingEntries(targetDateKey, updatedEntry)
+    if (overlapping.length > 0) {
+      setShowOverlapConfirm({ entry: updatedEntry, fromDateKey, toDateKey: targetDateKey })
+      return { shouldClose: false }
+    }
+
+    await moveEntry(fromDateKey, targetDateKey, updatedEntry)
+    const fromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id)
+    const toEntries = entries[targetDateKey] || []
+    setEntries((prev) => ({
+      ...prev,
+      [fromDateKey]: fromEntries,
+      [targetDateKey]: [...toEntries, updatedEntry]
+    }))
+    return { shouldClose: true }
   }
 
   const addEntry = () => {
@@ -1305,8 +1366,12 @@ function App() {
             intervalMinutes={calendarInterval}
             calendarStartTime={calendarStartTime}
             calendarEndTime={calendarEndTime}
-            onEditEntry={setEditingEntry}
+            onEditEntry={(entry, dateKey) => {
+              setEditingEntry(entry)
+              setEditingEntryDateKey(dateKey ?? null)
+            }}
             editingEntry={editingEntry}
+            editingEntryDateKey={editingEntryDateKey}
           />
         )}
       </div>
@@ -1717,6 +1782,19 @@ function App() {
             <div className="modal-buttons">
               <button className="btn-cancel" onClick={() => { setShowLogPrompt(false); setClickedSummary(null); }}>No</button>
               <button className="btn-save" onClick={handleMarkAsLogged}>Yes, Mark as Logged</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOverlapConfirm && (
+        <div className="calendar-modal-overlay" onClick={() => setShowOverlapConfirm(null)}>
+          <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <h3>Time Overlap Warning</h3>
+            <p>Moving this entry will create overlapping time with existing entries on {showOverlapConfirm.toDateKey}. Continue?</p>
+            <div className="modal-buttons">
+              <button className="btn-cancel" onClick={() => setShowOverlapConfirm(null)}>Cancel</button>
+              <button className="btn-save" onClick={executeMoveAndClose}>Continue</button>
             </div>
           </div>
         </div>
