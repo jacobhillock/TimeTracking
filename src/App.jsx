@@ -538,7 +538,7 @@ function App() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [currentView, setCurrentView] = useState(() => {
     const saved = localStorage.getItem('currentView')
-    return saved || 'task'
+    return saved || 'calendar'
   })
   const [entries, setEntries] = useState({})
   const [isLoadingEntries, setIsLoadingEntries] = useState(true)
@@ -612,7 +612,7 @@ function App() {
     }
 
     const handleFocus = () => {
-      if (windowWasBlurred.current && clickedSummary && !clickedSummary.allDisabled) {
+      if (windowWasBlurred.current && clickedSummary && !clickedSummary.allDisabled && !clickedSummary.isUntracked) {
         setShowLogPrompt(true)
       }
       windowWasBlurred.current = false
@@ -1079,9 +1079,10 @@ function App() {
     const summary = {}
 
     dayEntries.forEach(entry => {
-      if (entry.client && entry.ticket && entry.startTime && entry.endTime) {
-        const key = `${entry.client}-${entry.ticket}`
-        
+      if (entry.client && entry.startTime && entry.endTime) {
+        const key = entry.ticket ? `${entry.client}-${entry.ticket}` : `${entry.client}-untracked-${entry.id}`
+        const isUntracked = !entry.ticket
+
         const [startH, startM] = entry.startTime.split(':').map(Number)
         const [endH, endM] = entry.endTime.split(':').map(Number)
         const start = startH * 60 + startM
@@ -1091,12 +1092,13 @@ function App() {
         if (!summary[key]) {
           summary[key] = {
             client: entry.client,
-            ticket: entry.ticket,
+            ticket: entry.ticket || '',
             minutes: 0,
             descriptions: [],
             allDisabled: true,
             someDisabled: false,
-            entryIds: []
+            entryIds: [],
+            isUntracked
           }
         }
         summary[key].minutes += minutes
@@ -1174,9 +1176,9 @@ function App() {
 
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
+      weekday: 'short', 
       year: 'numeric', 
-      month: 'long', 
+      month: 'short', 
       day: 'numeric' 
     })
   }
@@ -1227,16 +1229,16 @@ function App() {
           <h1>Time Tracker</h1>
           <div className="view-toggle">
             <button 
-              className={`view-button ${currentView === 'task' ? 'active' : ''}`}
-              onClick={() => setCurrentView('task')}
-            >
-              Task View
-            </button>
-            <button 
               className={`view-button ${currentView === 'calendar' ? 'active' : ''}`}
               onClick={() => setCurrentView('calendar')}
             >
-              Calendar View
+              Calendar
+            </button>
+            <button 
+              className={`view-button ${currentView === 'task' ? 'active' : ''}`}
+              onClick={() => setCurrentView('task')}
+            >
+              Daily Tasks
             </button>
           </div>
           <div className="date-navigation">
@@ -1395,7 +1397,7 @@ function App() {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                     <div>
-                      {jiraBaseUrl ? (
+                      {getJiraUrl(item.client, item.ticket) ? (
                         <a 
                           href={getJiraUrl(item.client, item.ticket)}
                           target="_blank"
@@ -1406,10 +1408,19 @@ function App() {
                             setClickedSummary(item)
                           }}
                         >
-                          {item.key}
+                          {item.isUntracked ? `${item.client} (untracked)` : item.key}
                         </a>
                       ) : (
-                        <strong>{item.key}</strong>
+                        <span
+                          className="summary-link"
+                          style={{ cursor: 'pointer', fontWeight: 'bold' }}
+                          onClick={() => {
+                            navigator.clipboard.writeText(item.hours + 'h')
+                            if (!item.isUntracked) setClickedSummary(item)
+                          }}
+                        >
+                          {item.isUntracked ? `${item.client} (untracked)` : item.key}
+                        </span>
                       )}
                     </div>
                     <div className="summary-hours">
@@ -1427,26 +1438,28 @@ function App() {
                       ))}
                     </ul>
                   )}
-                  <div style={{ position: 'absolute', bottom: '10px', right: '10px' }}>
-                    <input
-                      type="checkbox"
-                      checked={item.allDisabled}
-                      ref={(el) => {
-                        if (el) el.indeterminate = item.isIndeterminate
-                      }}
-                      onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
-                      style={{
-                        marginBottom: '0',
-                      }}
-                      title="Toggle all entries for this ticket"
-                    />
-                  </div>
+                  {!item.isUntracked && (
+                    <div style={{ position: 'absolute', bottom: '10px', right: '10px' }}>
+                      <input
+                        type="checkbox"
+                        checked={item.allDisabled}
+                        ref={(el) => {
+                          if (el) el.indeterminate = item.isIndeterminate
+                        }}
+                        onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
+                        style={{
+                          marginBottom: '0',
+                        }}
+                        title="Toggle all entries for this ticket"
+                      />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           ) : (
             <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
-              No entries with client and ticket yet
+              No entries with client yet
             </div>
           )}
         </CollapsibleSection>
@@ -1562,20 +1575,24 @@ function App() {
                             }}
                           />
                         </div>
-                        {(todo.client && todo.ticket) && (
+                        {todo.client && (
                           <div style={{ fontSize: '12px', marginLeft: '10px' }}>
-                            {jiraBaseUrl ? (
-                              <a 
-                                href={getJiraUrl(todo.client, todo.ticket)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="summary-link"
-                                style={{ fontSize: '12px' }}
-                              >
-                                {todo.client}-{todo.ticket}
-                              </a>
+                            {todo.ticket ? (
+                              getJiraUrl(todo.client, todo.ticket) ? (
+                                <a 
+                                  href={getJiraUrl(todo.client, todo.ticket)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="summary-link"
+                                  style={{ fontSize: '12px' }}
+                                >
+                                  {todo.client}-{todo.ticket}
+                                </a>
+                              ) : (
+                                <span style={{ color: '#666' }}>{todo.client}-{todo.ticket}</span>
+                              )
                             ) : (
-                              <span style={{ color: '#666' }}>{todo.client}-{todo.ticket}</span>
+                              <span style={{ color: '#666' }}>{todo.client}</span>
                             )}
                           </div>
                         )}
