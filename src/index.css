@@ -392,7 +392,7 @@ body.dark-mode .dark-mode-toggle:hover {
   font-weight: bold;
 }
 
-.summary-link:hover {
+a.summary-link:hover {
   text-decoration: none;
   opacity: 0.8;
 }

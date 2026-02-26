@@ -1411,14 +1411,7 @@ function App() {
                           {item.isUntracked ? `${item.client} (untracked)` : item.key}
                         </a>
                       ) : (
-                        <span
-                          className="summary-link"
-                          style={{ cursor: 'pointer', fontWeight: 'bold' }}
-                          onClick={() => {
-                            navigator.clipboard.writeText(item.hours + 'h')
-                            if (!item.isUntracked) setClickedSummary(item)
-                          }}
-                        >
+                        <span className="summary-link">
                           {item.isUntracked ? `${item.client} (untracked)` : item.key}
                         </span>
                       )}
