@@ -97,6 +97,7 @@ body.dark-mode .total-hours {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-shrink: 0;
   background: white;
   padding: 20px;
   border-radius: 8px;
@@ -223,9 +224,12 @@ body.dark-mode .dark-mode-toggle:hover {
 
 .main-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: 20px;
   overflow-y: auto;
   position: relative;
+  min-height: 0;
 }
 
 .time-entries {
@@ -451,7 +455,8 @@ body.dark-mode .view-button.active {
 .calendar-view {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 180px);
+  flex: 1;
+  min-height: 0;
   background: white;
   border-radius: 8px;
   overflow: hidden;
