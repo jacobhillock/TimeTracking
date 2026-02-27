@@ -268,7 +268,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const getHourMarkers = () => {
     const { start, end } = getVisibleMinutes()
     const markers = []
-    for (let min = start; min <= end; min += intervalMinutes) {
+    // Exclude rows that start at the end time (they would extend beyond it)
+    for (let min = start; min < end; min += intervalMinutes) {
       markers.push(min)
     }
     return markers
@@ -303,7 +304,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               className={`calendar-hour-label ${isTimeLabelInRange(min) ? 'highlighted' : ''}`}
               style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
             >
-              {minutesToTime(min)}
+              {minutesToTime(min)} – {minutesToTime(min + intervalMinutes)}
             </div>
           ))}
         </div>
