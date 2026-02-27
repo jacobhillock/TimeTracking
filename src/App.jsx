@@ -62,7 +62,7 @@ function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, childre
   )
 }
 
-function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, isEntryUntracked }) {
+function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, isEntryUntracked, style }) {
   const [dragStartRegion, setDragStartRegion] = useState(null)
   const [dragCurrentRegion, setDragCurrentRegion] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -268,7 +268,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const getHourMarkers = () => {
     const { start, end } = getVisibleMinutes()
     const markers = []
-    for (let min = start; min <= end; min += intervalMinutes) {
+    // Exclude rows that start at the end time (they would extend beyond it)
+    for (let min = start; min < end; min += intervalMinutes) {
       markers.push(min)
     }
     return markers
@@ -279,7 +280,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const { start: visibleStart, end: visibleEnd, duration: visibleDuration } = getVisibleMinutes()
 
   return (
-    <div className="calendar-view">
+    <div className="calendar-view" style={style}>
       <div className="calendar-header">
         <div className="calendar-time-column"></div>
         {businessWeekDates.map(date => (
@@ -303,7 +304,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               className={`calendar-hour-label ${isTimeLabelInRange(min) ? 'highlighted' : ''}`}
               style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
             >
-              {minutesToTime(min)}
+              {minutesToTime(min)} – {minutesToTime(min + intervalMinutes)}
             </div>
           ))}
         </div>
@@ -601,6 +602,8 @@ function App() {
   const [editTodoDescription, setEditTodoDescription] = useState('')
   const [editTodoClient, setEditTodoClient] = useState('')
   const [editTodoTicket, setEditTodoTicket] = useState('')
+  const headerRef = useRef(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
   const windowWasBlurred = useRef(false)
   const isInitialMount = useRef(true)
 
@@ -1219,6 +1222,22 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [])
 
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+
+    const updateHeight = () => {
+      const headerH = header.offsetHeight
+      const headerMarginBottom = 20
+      setHeaderHeight(headerH + headerMarginBottom)
+    }
+
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(header)
+    return () => observer.disconnect()
+  }, [currentView])
+
   return (
     <div className="app">
       <SearchModal 
@@ -1238,7 +1257,7 @@ function App() {
         >
           {sidebarVisible ? '›' : '‹'}
         </button>
-        <div className="header">
+        <div className="header" ref={headerRef}>
           <h1>Time Tracker</h1>
           <div className="view-toggle">
             <button 
@@ -1374,6 +1393,7 @@ function App() {
           </>
         ) : (
           <CalendarView
+            style={{ height: `calc(100% - ${headerHeight}px)` }}
             entries={entries}
             currentDate={currentDate}
             onAddEntry={addCalendarEntry}
