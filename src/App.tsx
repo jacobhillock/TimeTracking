@@ -1,559 +1,68 @@
 import { useState, useEffect, useRef } from 'react'
+import type { DragEvent } from 'react'
 import { migrateFromLocalStorage } from './services/db'
 import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
 import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
+import type { TimeEntry, Todo } from './services/types'
+import type { ClientColors, CollapsedSections, EditableTimeEntry, EntriesByDate, ViewMode } from './types/app'
 import SearchModal from './SearchModal'
+import CalendarView from './components/CalendarView'
+import CollapsibleSection from './components/CollapsibleSection'
 
-function Chevron({ isCollapsed }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)', transition: 'transform 0.2s' }}>
-      <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
+interface SummaryItem {
+  key: string
+  client: string
+  ticket: string
+  minutes: number
+  descriptions: string[]
+  allDisabled: boolean
+  someDisabled: boolean
+  entryIds: number[]
+  isUntracked: boolean
+  hours: string
+  isIndeterminate: boolean
 }
 
-function getContrastColor(hexColor) {
-  // Convert hex to RGB
+interface SummaryAccumulator {
+  client: string
+  ticket: string
+  minutes: number
+  descriptions: string[]
+  allDisabled: boolean
+  someDisabled: boolean
+  entryIds: number[]
+  isUntracked: boolean
+}
+
+interface OverlapConfirmState {
+  entry: TimeEntry
+  fromDateKey: string
+  toDateKey: string
+}
+
+function getContrastColor(hexColor: string): string {
   const hex = hexColor.replace('#', '')
   const r = parseInt(hex.substr(0, 2), 16)
   const g = parseInt(hex.substr(2, 2), 16)
   const b = parseInt(hex.substr(4, 2), 16)
-  
-  // Calculate relative luminance
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  
-  // Return white for dark colors, black for light colors
   return luminance > 0.5 ? '#000000' : '#ffffff'
 }
-
-function adjustColorBrightness(hexColor, percent) {
-  const hex = hexColor.replace('#', '')
-  const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + percent))
-  const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + percent))
-  const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + percent))
-  
-  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')
-}
-
-function CollapsibleSection({ title, sectionName, isCollapsed, onToggle, children }) {
-  const contentRef = useRef(null)
-  const [maxHeight, setMaxHeight] = useState('none')
-
-  useEffect(() => {
-    if (contentRef.current) {
-      setMaxHeight(isCollapsed ? '0px' : `${contentRef.current.scrollHeight}px`)
-    }
-  }, [isCollapsed, children])
-
-  return (
-    <div className="sidebar-section">
-      <h2 onClick={onToggle} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Chevron isCollapsed={isCollapsed} />
-        {title}
-      </h2>
-      <div 
-        ref={contentRef}
-        className={`section-content ${isCollapsed ? 'collapsed' : ''}`}
-        style={{ maxHeight }}
-      >
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, isEntryUntracked, style }) {
-  const [dragStartRegion, setDragStartRegion] = useState(null)
-  const [dragCurrentRegion, setDragCurrentRegion] = useState(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [hoveredTimeRange, setHoveredTimeRange] = useState(null)
-  const [resizingEntry, setResizingEntry] = useState(null)
-  const [resizeEdge, setResizeEdge] = useState(null)
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
-  const gridRef = useRef(null)
-  const businessWeekDates = getBusinessWeekDates()
-
-  const handleSave = async () => {
-    const { isNew, ...entryToSave } = editingEntry
-    const targetDateKey = editingEntryDateKey || Object.keys(entries).find((k) => entries[k]?.some((e) => e.id === entryToSave.id))
-    const result = await onUpdateEntry(entryToSave, targetDateKey)
-    if (result?.shouldClose !== false) {
-      onEditEntry(null, null)
-    }
-  }
-
-  const handleDiscardNewEntry = () => {
-    if (editingEntry && editingEntry.isNew) {
-      // Find which date the entry belongs to and remove it
-      for (const dateKey in entries) {
-        const dayEntries = entries[dateKey]
-        if (dayEntries && dayEntries.some(e => e.id === editingEntry.id)) {
-          onDeleteEntry(dateKey, editingEntry.id)
-          break
-        }
-      }
-    }
-    setShowCloseConfirm(false)
-    onEditEntry(null, null)
-  }
-
-  function getBusinessWeekDates() {
-    const d = new Date(currentDate)
-    const day = d.getDay()
-    const diff = d.getDate() - day + (day === 0 ? -2 : 1)
-    const monday = new Date(d.setDate(diff))
-    const dates = []
-    for (let i = 0; i < 5; i++) {
-      const date = new Date(monday)
-      date.setDate(date.getDate() + i)
-      dates.push(date)
-    }
-    return dates
-  }
-
-  const timeToMinutes = (timeStr) => {
-    const [h, m] = timeStr.split(':').map(Number)
-    return h * 60 + m
-  }
-
-  const minutesToTime = (mins) => {
-    const h = Math.floor(mins / 60)
-    const m = mins % 60
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  }
-
-  const roundToInterval = (minutes) => {
-    return Math.round(minutes / intervalMinutes) * intervalMinutes
-  }
-
-  const floorToInterval = (minutes) => {
-    return Math.floor(minutes / intervalMinutes) * intervalMinutes
-  }
-
-  const ceilToInterval = (minutes) => {
-    return Math.ceil(minutes / intervalMinutes) * intervalMinutes
-  }
-
-  const getVisibleMinutes = () => {
-    const start = timeToMinutes(calendarStartTime)
-    const end = timeToMinutes(calendarEndTime)
-    return { start, end, duration: end - start }
-  }
-
-  const getDateFromMouseEvent = (e) => {
-    const grid = gridRef.current
-    if (!grid) return null
-    
-    const gridRect = grid.getBoundingClientRect()
-    const offsetX = e.clientX - gridRect.left
-    const columnWidth = (gridRect.width - 80) / 5
-    const columnIndex = Math.floor((offsetX - 80) / columnWidth)
-    
-    if (columnIndex < 0 || columnIndex >= 5) return null
-    return businessWeekDates[columnIndex]
-  }
-
-  const handleSlotMouseDown = (date, slotMinutes) => {
-    setDragStartRegion({ date, minutes: slotMinutes })
-    setDragCurrentRegion({ date, minutes: slotMinutes })
-    setIsDragging(true)
-  }
-
-  const handleSlotMouseEnterDrag = (date, slotMinutes) => {
-    if (resizingEntry && resizeEdge) {
-      const updatedEntry = { ...resizingEntry }
-      if (resizeEdge === 'top') {
-        const endMinutes = timeToMinutes(resizingEntry.endTime)
-        if (slotMinutes < endMinutes) {
-          updatedEntry.startTime = minutesToTime(slotMinutes)
-          setResizingEntry(updatedEntry)
-          onUpdateEntry(updatedEntry)
-        }
-      } else {
-        const startMinutes = timeToMinutes(resizingEntry.startTime)
-        if (slotMinutes + intervalMinutes > startMinutes) {
-          updatedEntry.endTime = minutesToTime(slotMinutes + intervalMinutes)
-          setResizingEntry(updatedEntry)
-          onUpdateEntry(updatedEntry)
-        }
-      }
-      return
-    }
-    
-    if (!isDragging || !dragStartRegion) return
-    setDragCurrentRegion({ date, minutes: slotMinutes })
-  }
-
-  const handleMouseUp = () => {
-    if (resizingEntry) {
-      setResizingEntry(null)
-      setResizeEdge(null)
-      setIsDragging(false)
-      return
-    }
-
-    if (!isDragging || !dragStartRegion || !dragCurrentRegion) {
-      setDragStartRegion(null)
-      setDragCurrentRegion(null)
-      setIsDragging(false)
-      return
-    }
-
-    const startMin = Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)
-    const endMin = Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes
-
-    const dateKey = dragStartRegion.date.toISOString().split('T')[0]
-
-    const newEntry = {
-      id: Date.now(),
-      startTime: minutesToTime(startMin),
-      endTime: minutesToTime(endMin),
-      client: '',
-      ticket: '',
-      description: '',
-      disabled: false,
-      isNew: true
-    }
-
-    onAddEntry(dateKey, newEntry)
-    onEditEntry(newEntry, dateKey)
-    setDragStartRegion(null)
-    setDragCurrentRegion(null)
-    setIsDragging(false)
-  }
-
-  const handleResizeMouseDown = (e, entry, edge, dateKey) => {
-    e.stopPropagation()
-    e.preventDefault()
-    setResizingEntry({ ...entry, dateKey })
-    setResizeEdge(edge)
-    setIsDragging(true)
-  }
-
-  useEffect(() => {
-    if (resizingEntry) {
-      const handleUp = () => handleMouseUp()
-      
-      window.addEventListener('mouseup', handleUp)
-      
-      return () => {
-        window.removeEventListener('mouseup', handleUp)
-      }
-    }
-  }, [resizingEntry, resizeEdge])
-
-  const handleEntryMouseEnter = (entry) => {
-    const startMin = timeToMinutes(entry.startTime)
-    const endMin = timeToMinutes(entry.endTime)
-    setHoveredTimeRange({ start: startMin, end: endMin })
-  }
-
-  const handleEntryMouseLeave = () => {
-    setHoveredTimeRange(null)
-  }
-
-  const isTimeLabelInRange = (min) => {
-    if (!hoveredTimeRange) return false
-    return min >= hoveredTimeRange.start && min < hoveredTimeRange.end
-  }
-
-  const handleSlotMouseEnter = (slotMinutes) => {
-    setHoveredTimeRange({ start: slotMinutes, end: slotMinutes + intervalMinutes })
-  }
-
-  const handleSlotMouseLeave = () => {
-    setHoveredTimeRange(null)
-  }
-
-  const getHourMarkers = () => {
-    const { start, end } = getVisibleMinutes()
-    const markers = []
-    // Exclude rows that start at the end time (they would extend beyond it)
-    for (let min = start; min < end; min += intervalMinutes) {
-      markers.push(min)
-    }
-    return markers
-  }
-
-  const hours = Array.from({ length: 24 }, (_, i) => i)
-  const hourMarkers = getHourMarkers()
-  const { start: visibleStart, end: visibleEnd, duration: visibleDuration } = getVisibleMinutes()
-
-  return (
-    <div className="calendar-view" style={style}>
-      <div className="calendar-header">
-        <div className="calendar-time-column"></div>
-        {businessWeekDates.map(date => (
-          <div key={date.toISOString()} className="calendar-day-header">
-            <div className="day-name">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-            <div className="day-date">{date.getDate()}</div>
-          </div>
-        ))}
-      </div>
-
-      <div 
-        className="calendar-grid"
-        ref={gridRef}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      >
-        <div className="calendar-time-column">
-          {hourMarkers.map(min => (
-            <div 
-              key={min} 
-              className={`calendar-hour-label ${isTimeLabelInRange(min) ? 'highlighted' : ''}`}
-              style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
-            >
-              {minutesToTime(min)} – {minutesToTime(min + intervalMinutes)}
-            </div>
-          ))}
-        </div>
-
-        {businessWeekDates.map(date => {
-          const dateKey = date.toISOString().split('T')[0]
-          const dayEntries = entries[dateKey] || []
-          return (
-            <div key={dateKey} className="calendar-day-column">
-              {hourMarkers.map(min => (
-                <div 
-                  key={min} 
-                  className="calendar-hour-slot" 
-                  style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
-                  onMouseDown={(e) => {
-                    if (e.button === 0 && !e.target.closest('.calendar-entry')) {
-                      handleSlotMouseDown(date, min)
-                    }
-                  }}
-                  onMouseEnter={() => {
-                    handleSlotMouseEnter(min)
-                    handleSlotMouseEnterDrag(date, min)
-                  }}
-                  onMouseLeave={handleSlotMouseLeave}
-                ></div>
-              ))}
-              
-              {isDragging && dragStartRegion && dragCurrentRegion && 
-               dragStartRegion.date.toISOString().split('T')[0] === dateKey && (
-                <div
-                  className="calendar-drag-preview"
-                  style={{
-                    top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleDuration) * 100}%`,
-                    height: `calc(${((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes - Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) / visibleDuration) * 100}% - 8px)`
-                  }}
-                >
-                  <div className="preview-time">
-                    {minutesToTime(Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes))} - {minutesToTime(Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes)}
-                  </div>
-                </div>
-              )}
-
-              {dayEntries.map(entry => {
-                const startMin = timeToMinutes(entry.startTime)
-                const endMin = timeToMinutes(entry.endTime)
-                const durationHours = ((endMin - startMin) / 60).toFixed(2)
-                
-                if (endMin < visibleStart || startMin > visibleEnd) return null
-
-                const clampedStart = Math.max(startMin, visibleStart)
-                const clampedEnd = Math.min(endMin, visibleEnd)
-                
-                const topPercent = ((clampedStart - visibleStart) / visibleDuration) * 100
-                const heightPercent = ((clampedEnd - clampedStart) / visibleDuration) * 100
-                
-                const clientColor = entry.client && clientColors[entry.client] ? clientColors[entry.client] : '#2196F3'
-                const textColor = getContrastColor(clientColor)
-                const borderColor = adjustColorBrightness(clientColor, -30)
-                
-                return (
-                  <div
-                    key={entry.id}
-                    className={`calendar-entry ${entry.disabled ? 'disabled' : ''}`}
-                    style={{
-                      top: `${topPercent}%`,
-                      height: `calc(${heightPercent}% - 8px)`,
-                      pointerEvents: resizingEntry && resizingEntry.id === entry.id ? 'none' : 'auto',
-                      backgroundColor: clientColor,
-                      color: textColor,
-                      borderColor: borderColor,
-                      opacity: entry.disabled ? 0.5 : 1
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onEditEntry(entry, dateKey)
-                    }}
-                    onMouseEnter={() => handleEntryMouseEnter(entry)}
-                    onMouseLeave={handleEntryMouseLeave}
-                  >
-                    <div 
-                      className="entry-resize-handle entry-resize-top"
-                      onMouseDown={(e) => handleResizeMouseDown(e, entry, 'top', dateKey)}
-                      title="Drag to adjust start time"
-                      style={{ 
-                        pointerEvents: 'auto',
-                        backgroundColor: borderColor
-                      }}
-                    />
-                    <div className="entry-client">
-                      {entry.client}{entry.ticket ? `-${entry.ticket}` : ''} <span style={{ fontSize: '0.85em', opacity: 0.8 }}>(time: {durationHours}h)</span>
-                    </div>
-                    <div className="entry-description">{entry.description}</div>
-                    <button
-                      className="entry-delete"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDeleteEntry(dateKey, entry.id)
-                      }}
-                      style={{ color: textColor }}
-                    >
-                      ✕
-                    </button>
-                    <div 
-                      className="entry-resize-handle entry-resize-bottom"
-                      onMouseDown={(e) => handleResizeMouseDown(e, entry, 'bottom', dateKey)}
-                      title="Drag to adjust end time"
-                      style={{ 
-                        pointerEvents: 'auto',
-                        backgroundColor: borderColor
-                      }}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })}
-      </div>
-
-      {editingEntry && (
-        <div className="calendar-modal-overlay">
-          <div 
-            className="calendar-modal" 
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault()
-                handleSave()
-              }
-            }}
-          >
-            <h3>{editingEntry.isNew ? 'New Entry' : 'Edit Entry'}</h3>
-            <div className="modal-field">
-              <label>Date</label>
-              <input
-                type="date"
-                value={editingEntryDateKey || ''}
-                onChange={(e) => onEditEntry({ ...editingEntry }, e.target.value)}
-                tabIndex="0"
-              />
-            </div>
-            <div className="modal-field">
-              <label>Start Time</label>
-              <input
-                type="time"
-                value={editingEntry.startTime}
-                onChange={(e) => onEditEntry({ ...editingEntry, startTime: e.target.value }, editingEntryDateKey)}
-                tabIndex="1"
-              />
-            </div>
-            <div className="modal-field">
-              <label>End Time</label>
-              <input
-                type="time"
-                value={editingEntry.endTime}
-                onChange={(e) => onEditEntry({ ...editingEntry, endTime: e.target.value }, editingEntryDateKey)}
-                tabIndex="2"
-              />
-            </div>
-            <div className="modal-field">
-              <label>Client</label>
-              <select
-                value={editingEntry.client}
-                onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)}
-                tabIndex="3"
-              >
-                <option value="">Select Client</option>
-                {clients.map(client => (
-                  <option key={client} value={client}>{client}</option>
-                ))}
-              </select>
-            </div>
-            <div className="modal-field">
-              <label>Ticket #</label>
-              <input
-                type="text"
-                value={editingEntry.ticket}
-                onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)}
-                tabIndex="4"
-              />
-            </div>
-            <div className="modal-field">
-              <label>Description</label>
-              <textarea
-                value={editingEntry.description}
-                onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)}
-                rows="3"
-                tabIndex="5"
-              />
-            </div>
-            <div className="modal-field modal-field-checkbox">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={editingEntry.disabled || false}
-                  disabled={isEntryUntracked?.(editingEntry)}
-                  onChange={(e) => {
-                    if (isEntryUntracked?.(editingEntry) && e.target.checked) return
-                    onEditEntry({ ...editingEntry, disabled: e.target.checked }, editingEntryDateKey)
-                  }}
-                  tabIndex="6"
-                />
-                Logged
-              </label>
-            </div>
-            <div className="modal-buttons">
-              {editingEntry.isNew ? (
-                <button className="btn-cancel" onClick={() => setShowCloseConfirm(true)} tabIndex="8">Discard</button>
-              ) : (
-                <button className="btn-cancel" onClick={() => onEditEntry(null, null)} tabIndex="8">Cancel</button>
-              )}
-              <button className="btn-save" onClick={handleSave} tabIndex="7">Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCloseConfirm && (
-        <div className="calendar-modal-overlay" onClick={() => setShowCloseConfirm(false)}>
-          <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>Discard Entry?</h3>
-            <p>Are you sure you want to discard this new entry? This action cannot be undone.</p>
-            <div className="modal-buttons">
-              <button className="btn-cancel" onClick={() => setShowCloseConfirm(false)}>Cancel</button>
-              <button className="btn-save" onClick={handleDiscardNewEntry}>Discard</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function App() {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [currentView, setCurrentView] = useState(() => {
+  const [currentView, setCurrentView] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('currentView')
-    return saved || 'calendar'
+    return saved === 'task' || saved === 'calendar' ? saved : 'calendar'
   })
-  const [entries, setEntries] = useState({})
+  const [entries, setEntries] = useState<EntriesByDate>({})
   const [isLoadingEntries, setIsLoadingEntries] = useState(true)
-  const [clients, setClients] = useState(() => {
+  const [clients, setClients] = useState<string[]>(() => {
     const saved = localStorage.getItem('clients')
-    return saved ? JSON.parse(saved) : []
+    return saved ? (JSON.parse(saved) as string[]) : []
   })
-  const [clientColors, setClientColors] = useState(() => {
+  const [clientColors, setClientColors] = useState<ClientColors>(() => {
     const saved = localStorage.getItem('clientColors')
-    return saved ? JSON.parse(saved) : {}
+    return saved ? (JSON.parse(saved) as ClientColors) : {}
   })
   const [jiraBaseUrl, setJiraBaseUrl] = useState(() => {
     const saved = localStorage.getItem('jiraBaseUrl')
@@ -575,9 +84,9 @@ function App() {
     const saved = localStorage.getItem('calendarEndTime')
     return saved || '24:00'
   })
-  const [editingEntry, setEditingEntry] = useState(null)
-  const [editingEntryDateKey, setEditingEntryDateKey] = useState(null)
-  const [showOverlapConfirm, setShowOverlapConfirm] = useState(null)
+  const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null)
+  const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null)
+  const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null)
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : false
@@ -586,26 +95,26 @@ function App() {
     const saved = localStorage.getItem('sidebarVisible')
     return saved ? JSON.parse(saved) : true
   })
-  const [collapsedSections, setCollapsedSections] = useState(() => {
+  const [collapsedSections, setCollapsedSections] = useState<CollapsedSections>(() => {
     const saved = localStorage.getItem('collapsedSections')
-    return saved ? JSON.parse(saved) : {}
+    return saved ? (JSON.parse(saved) as CollapsedSections) : {}
   })
   const [newClient, setNewClient] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
-  const [clickedSummary, setClickedSummary] = useState(null)
+  const [clickedSummary, setClickedSummary] = useState<SummaryItem | null>(null)
   const [showLogPrompt, setShowLogPrompt] = useState(false)
-  const [todos, setTodos] = useState([])
+  const [todos, setTodos] = useState<Todo[]>([])
   const [newTodoDescription, setNewTodoDescription] = useState('')
   const [newTodoClient, setNewTodoClient] = useState('')
   const [newTodoTicket, setNewTodoTicket] = useState('')
-  const [editingTodoId, setEditingTodoId] = useState(null)
+  const [editingTodoId, setEditingTodoId] = useState<number | null>(null)
   const [editTodoDescription, setEditTodoDescription] = useState('')
   const [editTodoClient, setEditTodoClient] = useState('')
   const [editTodoTicket, setEditTodoTicket] = useState('')
-  const headerRef = useRef(null)
+  const headerRef = useRef<HTMLDivElement | null>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
-  const windowWasBlurred = useRef(false)
-  const isInitialMount = useRef(true)
+  const windowWasBlurred = useRef<boolean>(false)
+  const isInitialMount = useRef<boolean>(true)
 
   const dateKey = currentDate.toISOString().split('T')[0]
 
@@ -789,7 +298,7 @@ function App() {
     return []
   }
 
-  const updateDayEntries = (newEntries, specificDateKey = null) => {
+  const updateDayEntries = (newEntries: TimeEntry[], specificDateKey: string | null = null): void => {
     const key = specificDateKey || dateKey
     setEntries(prev => ({ ...prev, [key]: newEntries }))
     
@@ -798,12 +307,12 @@ function App() {
     })
   }
 
-  const addCalendarEntry = (specificDateKey, newEntry) => {
+  const addCalendarEntry = (specificDateKey: string, newEntry: EditableTimeEntry): void => {
     const dayEntries = entries[specificDateKey] || []
     updateDayEntries([...dayEntries, newEntry], specificDateKey)
   }
 
-  const deleteCalendarEntry = (specificDateKey, entryId) => {
+  const deleteCalendarEntry = (specificDateKey: string, entryId: number): void => {
     const dayEntries = entries[specificDateKey] || []
     updateDayEntries(dayEntries.filter(e => e.id !== entryId), specificDateKey)
   }
@@ -824,17 +333,17 @@ function App() {
     setEditingEntryDateKey(null)
   }
 
-  const updateCalendarEntry = async (updatedEntry, newDateKey) => {
-    let fromDateKey = null
+  const updateCalendarEntry = async (updatedEntry: TimeEntry, newDateKey?: string): Promise<{ shouldClose: boolean }> => {
+    let fromDateKey: string | null = null
     for (const key in entries) {
       if (entries[key]?.some((e) => e.id === updatedEntry.id)) {
         fromDateKey = key
         break
       }
     }
-    const targetDateKey = newDateKey || fromDateKey
+    const targetDateKey = newDateKey ?? fromDateKey
 
-    if (!fromDateKey) {
+    if (!fromDateKey || !targetDateKey) {
       console.warn('Entry not found in entries')
       return { shouldClose: true }
     }
@@ -889,7 +398,7 @@ function App() {
     updateDayEntries([...dayEntries, newEntry])
   }
 
-  const updateEntry = (id, field, value) => {
+  const updateEntry = (id: number, field: keyof TimeEntry, value: string | boolean) => {
     const dayEntries = getDayEntries()
     const index = dayEntries.findIndex(e => e.id === id)
     
@@ -898,7 +407,7 @@ function App() {
     const updatedEntries = [...dayEntries]
     
     // If end time is before start time, add 12 hours to make it afternoon
-    if (field === 'endTime' && value && value.includes(':')) {
+    if (field === 'endTime' && typeof value === 'string' && value.includes(':')) {
       const startTime = dayEntries[index].startTime
       if (startTime) {
         const [startH, startM] = startTime.split(':').map(Number)
@@ -915,29 +424,29 @@ function App() {
 
     updatedEntries[index] = { ...updatedEntries[index], [field]: value }
 
-    if (field === 'endTime' && value && index < updatedEntries.length - 1) {
+    if (field === 'endTime' && typeof value === 'string' && index < updatedEntries.length - 1) {
       updatedEntries[index + 1] = { ...updatedEntries[index + 1], startTime: value }
     }
 
     updateDayEntries(updatedEntries)
   }
 
-  const deleteEntry = (id) => {
+  const deleteEntry = (id: number): void => {
     const dayEntries = getDayEntries()
     updateDayEntries(dayEntries.filter(e => e.id !== id))
   }
 
-  const handleDragStart = (e, index) => {
+  const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number): void => {
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/html', index)
+    e.dataTransfer.setData('text/html', String(index))
   }
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (e: DragEvent<HTMLDivElement>, index: number): void => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
   }
 
-  const handleDrop = (e, dropIndex) => {
+  const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number): void => {
     e.preventDefault()
     const dragIndex = parseInt(e.dataTransfer.getData('text/html'))
     
@@ -951,7 +460,7 @@ function App() {
     updateDayEntries(newEntries)
   }
 
-  const addMinutes = (time, minutes) => {
+  const addMinutes = (time: string, minutes: number): string => {
     const [hours, mins] = time.split(':').map(Number)
     const totalMinutes = hours * 60 + mins + minutes
     const newHours = Math.floor(totalMinutes / 60) % 24
@@ -978,7 +487,7 @@ function App() {
     return `${hours}h ${minutes}m`
   }
 
-  const changeDate = (days) => {
+  const changeDate = (days: number): void => {
     const newDate = new Date(currentDate)
     newDate.setDate(newDate.getDate() + days)
     setCurrentDate(newDate)
@@ -991,7 +500,7 @@ function App() {
     }
   }
 
-  const removeClient = (client) => {
+  const removeClient = (client: string): void => {
     setClients(clients.filter(c => c !== client))
   }
 
@@ -1014,7 +523,7 @@ function App() {
     }
   }
 
-  const handleToggleTodo = async (id) => {
+  const handleToggleTodo = async (id: number): Promise<void> => {
     console.log('Toggling todo:', id)
     const success = await toggleTodoCompletion(id)
     console.log('Toggle result:', success)
@@ -1025,7 +534,7 @@ function App() {
     }
   }
 
-  const handleDeleteTodo = async (id) => {
+  const handleDeleteTodo = async (id: number): Promise<void> => {
     console.log('Deleting todo:', id)
     const success = await deleteTodo(id)
     console.log('Delete result:', success)
@@ -1035,7 +544,7 @@ function App() {
     }
   }
 
-  const handleStartEditTodo = (todo) => {
+  const handleStartEditTodo = (todo: Todo): void => {
     setEditingTodoId(todo.id)
     setEditTodoDescription(todo.description)
     setEditTodoClient(todo.client || '')
@@ -1043,6 +552,7 @@ function App() {
   }
 
   const handleSaveEditTodo = async () => {
+    if (editingTodoId === null) return
     if (editTodoDescription.trim()) {
       const success = await updateTodo(
         editingTodoId,
@@ -1074,16 +584,16 @@ function App() {
     return [...uncompleted, ...completed]
   }
 
-  const getJiraUrl = (client, ticket) => {
+  const getJiraUrl = (client?: string, ticket?: string): string | undefined => {
     if (jiraBaseUrl && client && ticket) {
       return `${jiraBaseUrl}/${client}-${ticket}`
     }
-    return null
+    return undefined
   }
 
   const getSummary = () => {
     const dayEntries = entries[dateKey] || []
-    const summary = {}
+    const summary: Record<string, SummaryAccumulator> = {}
 
     dayEntries.forEach(entry => {
       if (entry.client && entry.startTime && entry.endTime) {
@@ -1143,7 +653,7 @@ function App() {
 
   const getClientTotals = () => {
     const dayEntries = entries[dateKey] || []
-    const clientTotals = {}
+    const clientTotals: Record<string, number> = {}
 
     dayEntries.forEach(entry => {
       if (entry.client && entry.startTime && entry.endTime) {
@@ -1163,9 +673,9 @@ function App() {
     return clientTotals
   }
 
-  const isEntryUntracked = (entry) => !entry?.ticket || !entry.ticket.trim()
+  const isEntryUntracked = (entry: TimeEntry): boolean => !entry.ticket || !entry.ticket.trim()
 
-  const toggleSummaryEntries = (entryIds, disabled) => {
+  const toggleSummaryEntries = (entryIds: number[], disabled: boolean): void => {
     const dayEntries = entries[dateKey] || []
     const trackedIds = disabled
       ? entryIds.filter(id => {
@@ -1190,7 +700,7 @@ function App() {
     setShowLogPrompt(false)
   }
 
-  const formatDate = (date) => {
+  const formatDate = (date: Date): string => {
     return date.toLocaleDateString('en-US', { 
       weekday: 'short', 
       year: 'numeric', 
@@ -1200,10 +710,13 @@ function App() {
   }
 
   const handleCalendarClick = () => {
-    document.getElementById('date-picker').showPicker()
+    const datePicker = document.getElementById('date-picker')
+    if (datePicker instanceof HTMLInputElement) {
+      datePicker.showPicker()
+    }
   }
 
-  const toggleSection = (sectionName) => {
+  const toggleSection = (sectionName: string): void => {
     setCollapsedSections(prev => ({
       ...prev,
       [sectionName]: !prev[sectionName]
@@ -1211,7 +724,7 @@ function App() {
   }
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'q') {
         e.preventDefault();
         setIsSearchOpen(prev => !prev);
