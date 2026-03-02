@@ -990,7 +990,6 @@ function App() {
                   <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar Interval</h3>
                   <select
                     value={calendarInterval}
-                    defaultValue="15"
                     onChange={(e) => setCalendarInterval(Number(e.target.value))}
                     style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
                   >
