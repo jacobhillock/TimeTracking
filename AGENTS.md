@@ -42,7 +42,7 @@ src/
 
 ## Conventions
 
-- **JSX vs TSX**: App and SearchModal are `.jsx`; services are `.ts`. Prefer TypeScript for new code.
+- **JSX vs TSX**: App/SearchModal/components are `.tsx`; services are `.ts`. Prefer TypeScript for new code.
 - **State**: React `useState`; some persisted to localStorage (clients, settings, dark mode, etc.).
 - **Data flow**: Services read/write IndexedDB; App coordinates UI and calls services.
 - **Date keys**: `dateKey` = `currentDate.toISOString().split('T')[0]` for lookups.

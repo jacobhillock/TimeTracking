@@ -25,3 +25,12 @@ export interface CalendarViewProps {
   isEntryUntracked?: (entry: TimeEntry) => boolean
   style?: CSSProperties
 }
+
+export interface TaskViewProps {
+  dayEntries: TimeEntry[]
+  clients: string[]
+  defaultStartTime: string
+  onUpdateDayEntries: (newEntries: TimeEntry[]) => void
+  getJiraUrl: (client?: string, ticket?: string) => string | undefined
+  isEntryUntracked: (entry: TimeEntry) => boolean
+}

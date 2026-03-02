@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import type { DragEvent } from 'react'
 import { migrateFromLocalStorage } from './services/db'
 import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
 import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
@@ -8,6 +7,7 @@ import type { ClientColors, CollapsedSections, EditableTimeEntry, EntriesByDate,
 import SearchModal from './SearchModal'
 import CalendarView from './components/CalendarView'
 import CollapsibleSection from './components/CollapsibleSection'
+import TaskView from './components/TaskView'
 
 interface SummaryItem {
   key: string
@@ -291,13 +291,6 @@ function App() {
     loadTodos()
   }, [dateKey])
 
-  const getDayEntries = () => {
-    if (currentView === 'task') {
-      return entries[dateKey] || []
-    }
-    return []
-  }
-
   const updateDayEntries = (newEntries: TimeEntry[], specificDateKey: string | null = null): void => {
     const key = specificDateKey || dateKey
     setEntries(prev => ({ ...prev, [key]: newEntries }))
@@ -374,117 +367,6 @@ function App() {
       [targetDateKey]: [...toEntries, updatedEntry]
     }))
     return { shouldClose: true }
-  }
-
-  const addEntry = () => {
-    const dayEntries = getDayEntries()
-    const lastEntry = dayEntries[dayEntries.length - 1]
-    
-    // Don't allow adding a new entry if the last one doesn't have an end time
-    if (lastEntry && !lastEntry.endTime) {
-      return
-    }
-    
-    const newEntry = {
-      id: Date.now(),
-      startTime: lastEntry ? lastEntry.endTime : defaultStartTime,
-      endTime: '',
-      client: '',
-      ticket: '',
-      description: '',
-      disabled: false
-    }
-    
-    updateDayEntries([...dayEntries, newEntry])
-  }
-
-  const updateEntry = (id: number, field: keyof TimeEntry, value: string | boolean) => {
-    const dayEntries = getDayEntries()
-    const index = dayEntries.findIndex(e => e.id === id)
-    
-    if (index === -1) return
-
-    const updatedEntries = [...dayEntries]
-    
-    // If end time is before start time, add 12 hours to make it afternoon
-    if (field === 'endTime' && typeof value === 'string' && value.includes(':')) {
-      const startTime = dayEntries[index].startTime
-      if (startTime) {
-        const [startH, startM] = startTime.split(':').map(Number)
-        const [endH, endM] = value.split(':').map(Number)
-        const startMinutes = startH * 60 + startM
-        const endMinutes = endH * 60 + endM
-        
-        if (endMinutes < startMinutes) {
-          const adjustedHours = (endH + 12) % 24
-          value = `${String(adjustedHours).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
-        }
-      }
-    }
-
-    updatedEntries[index] = { ...updatedEntries[index], [field]: value }
-
-    if (field === 'endTime' && typeof value === 'string' && index < updatedEntries.length - 1) {
-      updatedEntries[index + 1] = { ...updatedEntries[index + 1], startTime: value }
-    }
-
-    updateDayEntries(updatedEntries)
-  }
-
-  const deleteEntry = (id: number): void => {
-    const dayEntries = getDayEntries()
-    updateDayEntries(dayEntries.filter(e => e.id !== id))
-  }
-
-  const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number): void => {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/html', String(index))
-  }
-
-  const handleDragOver = (e: DragEvent<HTMLDivElement>, index: number): void => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number): void => {
-    e.preventDefault()
-    const dragIndex = parseInt(e.dataTransfer.getData('text/html'))
-    
-    if (dragIndex === dropIndex) return
-    
-    const dayEntries = getDayEntries()
-    const newEntries = [...dayEntries]
-    const [draggedItem] = newEntries.splice(dragIndex, 1)
-    newEntries.splice(dropIndex, 0, draggedItem)
-    
-    updateDayEntries(newEntries)
-  }
-
-  const addMinutes = (time: string, minutes: number): string => {
-    const [hours, mins] = time.split(':').map(Number)
-    const totalMinutes = hours * 60 + mins + minutes
-    const newHours = Math.floor(totalMinutes / 60) % 24
-    const newMins = totalMinutes % 60
-    return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`
-  }
-
-  const calculateTotalHours = () => {
-    const dayEntries = entries[dateKey] || []
-    let totalMinutes = 0
-
-    dayEntries.forEach(entry => {
-      if (entry.startTime && entry.endTime) {
-        const [startH, startM] = entry.startTime.split(':').map(Number)
-        const [endH, endM] = entry.endTime.split(':').map(Number)
-        const start = startH * 60 + startM
-        const end = endH * 60 + endM
-        totalMinutes += end - start
-      }
-    })
-
-    const hours = Math.floor(totalMinutes / 60)
-    const minutes = totalMinutes % 60
-    return `${hours}h ${minutes}m`
   }
 
   const changeDate = (days: number): void => {
@@ -812,98 +694,14 @@ function App() {
         </div>
 
         {currentView === 'task' ? (
-          <>
-            <div className="time-entries">
-              {getDayEntries().map((entry, index) => (
-                <div 
-                  key={entry.id} 
-                  className="time-entry" 
-                  style={{ opacity: entry.disabled ? 0.5 : 1, cursor: 'move' }}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={(e) => handleDrop(e, index)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={entry.disabled || false}
-                    disabled={isEntryUntracked(entry)}
-                    onChange={(e) => {
-                      if (isEntryUntracked(entry) && e.target.checked) return
-                      updateEntry(entry.id, 'disabled', e.target.checked)
-                    }}
-                    title={isEntryUntracked(entry) ? 'Untracked entries cannot be marked as logged' : 'Mark as logged'}
-                  />
-                  <input
-                    type="time"
-                    value={entry.startTime}
-                    onChange={(e) => updateEntry(entry.id, 'startTime', e.target.value)}
-                    disabled={entry.disabled}
-                  />
-                  <input
-                    type="time"
-                    value={entry.endTime}
-                    onChange={(e) => updateEntry(entry.id, 'endTime', e.target.value)}
-                    disabled={entry.disabled}
-                  />
-                  <select
-                    value={entry.client}
-                    onChange={(e) => updateEntry(entry.id, 'client', e.target.value)}
-                    disabled={entry.disabled}
-                  >
-                    <option value="">Select Client</option>
-                    {clients.map(client => (
-                      <option key={client} value={client}>{client}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    placeholder="Ticket #"
-                    value={entry.ticket}
-                    onChange={(e) => updateEntry(entry.id, 'ticket', e.target.value)}
-                    disabled={entry.disabled}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      placeholder="Description (optional)"
-                      value={entry.description}
-                      onChange={(e) => updateEntry(entry.id, 'description', e.target.value)}
-                      style={{ flex: 1 }}
-                      disabled={entry.disabled}
-                    />
-                    {getJiraUrl(entry.client, entry.ticket) && (
-                      <a 
-                        href={getJiraUrl(entry.client, entry.ticket)} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="jira-link"
-                        style={{ fontSize: '20px', marginLeft: '8px' }}
-                      >
-                        🔗
-                      </a>
-                    )}
-                  </div>
-                  <button onClick={() => deleteEntry(entry.id)} disabled={entry.disabled}>✕</button>
-                </div>
-              ))}
-              <button 
-                className="add-entry-button" 
-                onClick={addEntry}
-                disabled={getDayEntries().length > 0 && !getDayEntries()[getDayEntries().length - 1].endTime}
-                style={{ 
-                  opacity: getDayEntries().length > 0 && !getDayEntries()[getDayEntries().length - 1].endTime ? 0.5 : 1,
-                  cursor: getDayEntries().length > 0 && !getDayEntries()[getDayEntries().length - 1].endTime ? 'not-allowed' : 'pointer'
-                }}
-              >
-                + Add Time Entry
-              </button>
-            </div>
-
-            <div className="total-hours">
-              Total: {calculateTotalHours()}
-            </div>
-          </>
+          <TaskView
+            dayEntries={entries[dateKey] || []}
+            clients={clients}
+            defaultStartTime={defaultStartTime}
+            onUpdateDayEntries={(newEntries) => updateDayEntries(newEntries)}
+            getJiraUrl={getJiraUrl}
+            isEntryUntracked={isEntryUntracked}
+          />
         ) : (
           <CalendarView
             style={{ height: `calc(100% - ${headerHeight}px)` }}
