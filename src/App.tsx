@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import { migrateFromLocalStorage } from './services/db'
 import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
 import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
 import type { TimeEntry, Todo } from './services/types'
 import type { ClientColors, CollapsedSections, EditableTimeEntry, EntriesByDate, ViewMode } from './types/app'
+import useLocalStorageState, { STORAGE_KEYS } from './hooks/useLocalStorageState'
 import SearchModal from './SearchModal'
-import CalendarView from './components/CalendarView'
 import CollapsibleSection from './components/CollapsibleSection'
-import TaskView from './components/TaskView'
+
+const CalendarView = lazy(() => import('./components/CalendarView'))
+const TaskView = lazy(() => import('./components/TaskView'))
 
 interface SummaryItem {
   key: string
@@ -48,57 +50,39 @@ function getContrastColor(hexColor: string): string {
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
   return luminance > 0.5 ? '#000000' : '#ffffff'
 }
+
+const parseCurrentView = (rawValue: string): ViewMode => {
+  return rawValue === 'task' || rawValue === 'calendar' ? rawValue : 'calendar'
+}
+
+const parseNumber = (fallback: number) => (rawValue: string): number => {
+  const parsed = Number(rawValue)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 function App() {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [currentView, setCurrentView] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('currentView')
-    return saved === 'task' || saved === 'calendar' ? saved : 'calendar'
+  const [currentView, setCurrentView] = useLocalStorageState<ViewMode>(STORAGE_KEYS.CURRENT_VIEW, 'calendar', {
+    parse: parseCurrentView
   })
   const [entries, setEntries] = useState<EntriesByDate>({})
   const [isLoadingEntries, setIsLoadingEntries] = useState(true)
-  const [clients, setClients] = useState<string[]>(() => {
-    const saved = localStorage.getItem('clients')
-    return saved ? (JSON.parse(saved) as string[]) : []
+  const [clients, setClients] = useLocalStorageState<string[]>(STORAGE_KEYS.CLIENTS, [])
+  const [clientColors, setClientColors] = useLocalStorageState<ClientColors>(STORAGE_KEYS.CLIENT_COLORS, {})
+  const [jiraBaseUrl, setJiraBaseUrl] = useLocalStorageState<string>(STORAGE_KEYS.JIRA_BASE_URL, '')
+  const [defaultStartTime, setDefaultStartTime] = useLocalStorageState<string>(STORAGE_KEYS.DEFAULT_START_TIME, '09:00')
+  const [calendarInterval, setCalendarInterval] = useLocalStorageState<number>(STORAGE_KEYS.CALENDAR_INTERVAL, 15, {
+    parse: parseNumber(15),
+    serialize: (value) => String(value)
   })
-  const [clientColors, setClientColors] = useState<ClientColors>(() => {
-    const saved = localStorage.getItem('clientColors')
-    return saved ? (JSON.parse(saved) as ClientColors) : {}
-  })
-  const [jiraBaseUrl, setJiraBaseUrl] = useState(() => {
-    const saved = localStorage.getItem('jiraBaseUrl')
-    return saved || ''
-  })
-  const [defaultStartTime, setDefaultStartTime] = useState(() => {
-    const saved = localStorage.getItem('defaultStartTime')
-    return saved || '09:00'
-  })
-  const [calendarInterval, setCalendarInterval] = useState(() => {
-    const saved = localStorage.getItem('calendarInterval')
-    return saved ? parseInt(saved) : 15
-  })
-  const [calendarStartTime, setCalendarStartTime] = useState(() => {
-    const saved = localStorage.getItem('calendarStartTime')
-    return saved || '00:00'
-  })
-  const [calendarEndTime, setCalendarEndTime] = useState(() => {
-    const saved = localStorage.getItem('calendarEndTime')
-    return saved || '24:00'
-  })
+  const [calendarStartTime, setCalendarStartTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_START_TIME, '00:00')
+  const [calendarEndTime, setCalendarEndTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_END_TIME, '24:00')
   const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null)
   const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null)
   const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null)
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode')
-    return saved ? JSON.parse(saved) : false
-  })
-  const [sidebarVisible, setSidebarVisible] = useState(() => {
-    const saved = localStorage.getItem('sidebarVisible')
-    return saved ? JSON.parse(saved) : true
-  })
-  const [collapsedSections, setCollapsedSections] = useState<CollapsedSections>(() => {
-    const saved = localStorage.getItem('collapsedSections')
-    return saved ? (JSON.parse(saved) as CollapsedSections) : {}
-  })
+  const [darkMode, setDarkMode] = useLocalStorageState<boolean>(STORAGE_KEYS.DARK_MODE, false)
+  const [sidebarVisible, setSidebarVisible] = useLocalStorageState<boolean>(STORAGE_KEYS.SIDEBAR_VISIBLE, true)
+  const [collapsedSections, setCollapsedSections] = useLocalStorageState<CollapsedSections>(STORAGE_KEYS.COLLAPSED_SECTIONS, {})
   const [newClient, setNewClient] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [clickedSummary, setClickedSummary] = useState<SummaryItem | null>(null)
@@ -114,13 +98,8 @@ function App() {
   const headerRef = useRef<HTMLDivElement | null>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
   const windowWasBlurred = useRef<boolean>(false)
-  const isInitialMount = useRef<boolean>(true)
 
   const dateKey = currentDate.toISOString().split('T')[0]
-
-  useEffect(() => {
-    isInitialMount.current = false
-  }, [])
 
   useEffect(() => {
     const handleBlur = () => {
@@ -203,85 +182,9 @@ function App() {
     loadCurrentDayEntries()
   }, [currentDate, currentView, isLoadingEntries, dateKey])
 
-
-
   useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('clients', JSON.stringify(clients))
-      console.log('Saved clients to localStorage:', clients)
-    }
-  }, [clients])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('clientColors', JSON.stringify(clientColors))
-      console.log('Saved clientColors to localStorage:', clientColors)
-    }
-  }, [clientColors])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('jiraBaseUrl', jiraBaseUrl)
-      console.log('Saved jiraBaseUrl to localStorage:', jiraBaseUrl)
-    }
-  }, [jiraBaseUrl])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('defaultStartTime', defaultStartTime)
-      console.log('Saved defaultStartTime to localStorage:', defaultStartTime)
-    }
-  }, [defaultStartTime])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('darkMode', JSON.stringify(darkMode))
-      console.log('Saved darkMode to localStorage:', darkMode)
-    }
     document.body.classList.toggle('dark-mode', darkMode)
   }, [darkMode])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('sidebarVisible', JSON.stringify(sidebarVisible))
-      console.log('Saved sidebarVisible to localStorage:', sidebarVisible)
-    }
-  }, [sidebarVisible])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('collapsedSections', JSON.stringify(collapsedSections))
-      console.log('Saved collapsedSections to localStorage:', collapsedSections)
-    }
-  }, [collapsedSections])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('currentView', currentView)
-      console.log('Saved currentView to localStorage:', currentView)
-    }
-  }, [currentView])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('calendarInterval', String(calendarInterval))
-      console.log('Saved calendarInterval to localStorage:', calendarInterval)
-    }
-  }, [calendarInterval])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('calendarStartTime', calendarStartTime)
-      console.log('Saved calendarStartTime to localStorage:', calendarStartTime)
-    }
-  }, [calendarStartTime])
-
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      localStorage.setItem('calendarEndTime', calendarEndTime)
-      console.log('Saved calendarEndTime to localStorage:', calendarEndTime)
-    }
-  }, [calendarEndTime])
 
   useEffect(() => {
     const loadTodos = async () => {
@@ -693,38 +596,40 @@ function App() {
           </div>
         </div>
 
-        {currentView === 'task' ? (
-          <TaskView
-            dayEntries={entries[dateKey] || []}
-            clients={clients}
-            defaultStartTime={defaultStartTime}
-            onUpdateDayEntries={(newEntries) => updateDayEntries(newEntries)}
-            getJiraUrl={getJiraUrl}
-            isEntryUntracked={isEntryUntracked}
-          />
-        ) : (
-          <CalendarView
-            style={{ height: `calc(100% - ${headerHeight}px)` }}
-            entries={entries}
-            currentDate={currentDate}
-            onAddEntry={addCalendarEntry}
-            onUpdateEntry={updateCalendarEntry}
-            onDeleteEntry={deleteCalendarEntry}
-            clients={clients}
-            clientColors={clientColors}
-            defaultStartTime={defaultStartTime}
-            intervalMinutes={calendarInterval}
-            calendarStartTime={calendarStartTime}
-            calendarEndTime={calendarEndTime}
-            onEditEntry={(entry, dateKey) => {
-              setEditingEntry(entry)
-              setEditingEntryDateKey(dateKey ?? null)
-            }}
-            editingEntry={editingEntry}
-            editingEntryDateKey={editingEntryDateKey}
-            isEntryUntracked={isEntryUntracked}
-          />
-        )}
+        <Suspense fallback={<div className="total-hours">Loading view...</div>}>
+          {currentView === 'task' ? (
+            <TaskView
+              dayEntries={entries[dateKey] || []}
+              clients={clients}
+              defaultStartTime={defaultStartTime}
+              onUpdateDayEntries={(newEntries) => updateDayEntries(newEntries)}
+              getJiraUrl={getJiraUrl}
+              isEntryUntracked={isEntryUntracked}
+            />
+          ) : (
+            <CalendarView
+              style={{ height: `calc(100% - ${headerHeight}px)` }}
+              entries={entries}
+              currentDate={currentDate}
+              onAddEntry={addCalendarEntry}
+              onUpdateEntry={updateCalendarEntry}
+              onDeleteEntry={deleteCalendarEntry}
+              clients={clients}
+              clientColors={clientColors}
+              defaultStartTime={defaultStartTime}
+              intervalMinutes={calendarInterval}
+              calendarStartTime={calendarStartTime}
+              calendarEndTime={calendarEndTime}
+              onEditEntry={(entry, dateKey) => {
+                setEditingEntry(entry)
+                setEditingEntryDateKey(dateKey ?? null)
+              }}
+              editingEntry={editingEntry}
+              editingEntryDateKey={editingEntryDateKey}
+              isEntryUntracked={isEntryUntracked}
+            />
+          )}
+        </Suspense>
       </div>
 
       {sidebarVisible && (

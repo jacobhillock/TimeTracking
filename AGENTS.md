@@ -43,7 +43,7 @@ src/
 ## Conventions
 
 - **JSX vs TSX**: App/SearchModal/components are `.tsx`; services are `.ts`. Prefer TypeScript for new code.
-- **State**: React `useState`; some persisted to localStorage (clients, settings, dark mode, etc.).
+- **State**: React `useState`; use `useLocalStorageState` (`src/hooks/useLocalStorageState.ts`) for localStorage-backed UI settings instead of per-state sync `useEffect`s.
 - **Data flow**: Services read/write IndexedDB; App coordinates UI and calls services.
 - **Date keys**: `dateKey` = `currentDate.toISOString().split('T')[0]` for lookups.
 
