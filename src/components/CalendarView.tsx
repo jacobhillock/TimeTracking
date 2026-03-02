@@ -92,6 +92,13 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
   }
 
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const getVisibleMinutes = (): { start: number; end: number; duration: number } => {
     const start = timeToMinutes(calendarStartTime)
     const end = timeToMinutes(calendarEndTime)
@@ -146,7 +153,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
 
     const startMin = Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)
     const endMin = Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes
-    const dateKey = dragStartRegion.date.toISOString().split('T')[0]
+    const dateKey = formatLocalDate(dragStartRegion.date)
 
     const newEntry: EditableTimeEntry = {
       id: Date.now(),
@@ -212,7 +219,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
       <div className="calendar-header">
         <div className="calendar-time-column"></div>
         {businessWeekDates.map((date) => (
-          <div key={date.toISOString()} className="calendar-day-header">
+          <div key={formatLocalDate(date)} className="calendar-day-header">
             <div className="day-name">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
             <div className="day-date">{date.getDate()}</div>
           </div>
@@ -233,7 +240,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
         </div>
 
         {businessWeekDates.map((date) => {
-          const dateKey = date.toISOString().split('T')[0]
+          const dateKey = formatLocalDate(date)
           const dayEntries = entries[dateKey] || []
           return (
             <div key={dateKey} className="calendar-day-column">
@@ -255,7 +262,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                 ></div>
               ))}
 
-              {isDragging && dragStartRegion && dragCurrentRegion && dragStartRegion.date.toISOString().split('T')[0] === dateKey && (
+              {isDragging && dragStartRegion && dragCurrentRegion && formatLocalDate(dragStartRegion.date) === dateKey && (
                 <div
                   className="calendar-drag-preview"
                   style={{

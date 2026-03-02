@@ -7,6 +7,7 @@ import type { ClientColors, CollapsedSections, EditableTimeEntry, EntriesByDate,
 import useLocalStorageState, { STORAGE_KEYS } from './hooks/useLocalStorageState'
 import SearchModal from './SearchModal'
 import CollapsibleSection from './components/CollapsibleSection'
+import Toaster from './components/Toaster'
 
 const CalendarView = lazy(() => import('./components/CalendarView'))
 const TaskView = lazy(() => import('./components/TaskView'))
@@ -76,7 +77,7 @@ function App() {
     serialize: (value) => String(value)
   })
   const [calendarStartTime, setCalendarStartTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_START_TIME, '00:00')
-  const [calendarEndTime, setCalendarEndTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_END_TIME, '24:00')
+  const [calendarEndTime, setCalendarEndTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_END_TIME, '23:59')
   const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null)
   const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null)
   const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null)
@@ -137,14 +138,14 @@ function App() {
         setIsLoadingEntries(false)
       }
     }
-    
+
     initializeDB()
   }, [])
 
   useEffect(() => {
     async function loadCurrentDayEntries() {
       if (isLoadingEntries) return
-      
+
       if (currentView === 'task') {
         // Task view: load only current day
         if (!entries[dateKey]) {
@@ -160,16 +161,16 @@ function App() {
         const diff = d.getDate() - day + (day === 0 ? -2 : 1)
         const monday = new Date(d.setDate(diff))
         const weekDates = []
-        
+
         for (let i = 0; i < 5; i++) {
           const date = new Date(monday)
           date.setDate(date.getDate() + i)
           weekDates.push(date.toISOString().split('T')[0])
         }
-        
+
         // Only fetch dates we don't have yet
         const datesToFetch = weekDates.filter(date => !entries[date])
-        
+
         if (datesToFetch.length > 0) {
           const weekEntries = await getEntriesForDays(datesToFetch)
           if (Object.keys(weekEntries).length > 0) {
@@ -178,7 +179,7 @@ function App() {
         }
       }
     }
-    
+
     loadCurrentDayEntries()
   }, [currentDate, currentView, isLoadingEntries, dateKey])
 
@@ -197,7 +198,7 @@ function App() {
   const updateDayEntries = (newEntries: TimeEntry[], specificDateKey: string | null = null): void => {
     const key = specificDateKey || dateKey
     setEntries(prev => ({ ...prev, [key]: newEntries }))
-    
+
     setEntriesForDay(key, newEntries).catch(error => {
       console.error('Failed to sync entries to IndexedDB:', error)
     })
@@ -464,9 +465,9 @@ function App() {
     const dayEntries = entries[dateKey] || []
     const trackedIds = disabled
       ? entryIds.filter(id => {
-          const entry = dayEntries.find(e => e.id === id)
-          return entry && !isEntryUntracked(entry)
-        })
+        const entry = dayEntries.find(e => e.id === id)
+        return entry && !isEntryUntracked(entry)
+      })
       : entryIds
     const updatedEntries = dayEntries.map(entry => {
       if (trackedIds.includes(entry.id)) {
@@ -486,18 +487,22 @@ function App() {
   }
 
   const formatDate = (date: Date): string => {
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     })
   }
 
   const handleCalendarClick = () => {
     const datePicker = document.getElementById('date-picker')
-    if (datePicker instanceof HTMLInputElement) {
-      datePicker.showPicker()
+    if (datePicker instanceof HTMLInputElement && typeof datePicker.showPicker === 'function') {
+      try {
+        datePicker.showPicker()
+      } catch {
+        // Ignore unsupported or user-gesture restricted picker invocation failures.
+      }
     }
   }
 
@@ -537,533 +542,536 @@ function App() {
   }, [currentView])
 
   return (
-    <div className="app">
-      <SearchModal 
-        isOpen={isSearchOpen} 
-        onClose={() => setIsSearchOpen(false)}
-        currentDate={currentDate}
-        currentView={currentView}
-        onNavigateToDate={(date) => {
-          setCurrentDate(new Date(date + 'T12:00:00'))
-        }}
-      />
-      <div className="main-content">
-        <button 
-          className="sidebar-toggle-button"
-          onClick={() => setSidebarVisible(!sidebarVisible)}
-          title={sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
-        >
-          {sidebarVisible ? '›' : '‹'}
-        </button>
-        <div className="header" ref={headerRef}>
-          <h1>Time Tracker</h1>
-          <div className="view-toggle">
-            <button 
-              className={`view-button ${currentView === 'calendar' ? 'active' : ''}`}
-              onClick={() => setCurrentView('calendar')}
-            >
-              Calendar
-            </button>
-            <button 
-              className={`view-button ${currentView === 'task' ? 'active' : ''}`}
-              onClick={() => setCurrentView('task')}
-            >
-              Daily Tasks
-            </button>
-          </div>
-          <div className="date-navigation">
-            <button onClick={() => changeDate(-1)}>← Previous</button>
-            <span>{formatDate(currentDate)}</span>
-            <button onClick={() => changeDate(1)}>Next →</button>
-            <button onClick={() => setCurrentDate(new Date())}>Today</button>
-            <div className="date-picker-wrapper">
-              <span className="calendar-icon" onClick={handleCalendarClick}>📅</span>
-              <input
-                id="date-picker"
-                type="date"
-                value={currentDate.toISOString().split('T')[0]}
-                onChange={(e) => setCurrentDate(new Date(e.target.value + 'T12:00:00'))}
-                className="date-picker-input"
-              />
+    <>
+      <div className="app">
+        <SearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          currentDate={currentDate}
+          currentView={currentView}
+          onNavigateToDate={(date) => {
+            setCurrentDate(new Date(date + 'T12:00:00'))
+          }}
+        />
+        <div className="main-content">
+          <button
+            className="sidebar-toggle-button"
+            onClick={() => setSidebarVisible(!sidebarVisible)}
+            title={sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
+          >
+            {sidebarVisible ? '›' : '‹'}
+          </button>
+          <div className="header" ref={headerRef}>
+            <h1>Time Tracker</h1>
+            <div className="view-toggle">
+              <button
+                className={`view-button ${currentView === 'calendar' ? 'active' : ''}`}
+                onClick={() => setCurrentView('calendar')}
+              >
+                Calendar
+              </button>
+              <button
+                className={`view-button ${currentView === 'task' ? 'active' : ''}`}
+                onClick={() => setCurrentView('task')}
+              >
+                Daily Tasks
+              </button>
             </div>
-            <button 
-              className="search-button"
-              onClick={() => setIsSearchOpen(true)}
-              title="Search entries (Ctrl/Cmd+Q)"
-            >
-              🔍
-            </button>
+            <div className="date-navigation">
+              <button onClick={() => changeDate(-1)}>← Previous</button>
+              <span>{formatDate(currentDate)}</span>
+              <button onClick={() => changeDate(1)}>Next →</button>
+              <button onClick={() => setCurrentDate(new Date())}>Today</button>
+              <div className="date-picker-wrapper">
+                <span className="calendar-icon" onClick={handleCalendarClick}>📅</span>
+                <input
+                  id="date-picker"
+                  type="date"
+                  value={currentDate.toISOString().split('T')[0]}
+                  onChange={(e) => setCurrentDate(new Date(e.target.value + 'T12:00:00'))}
+                  className="date-picker-input"
+                />
+              </div>
+              <button
+                className="search-button"
+                onClick={() => setIsSearchOpen(true)}
+                title="Search entries (Ctrl/Cmd+Q)"
+              >
+                🔍
+              </button>
+            </div>
           </div>
+
+          <Suspense fallback={<div className="total-hours">Loading view...</div>}>
+            {currentView === 'task' ? (
+              <TaskView
+                dayEntries={entries[dateKey] || []}
+                clients={clients}
+                defaultStartTime={defaultStartTime}
+                onUpdateDayEntries={(newEntries) => updateDayEntries(newEntries)}
+                getJiraUrl={getJiraUrl}
+                isEntryUntracked={isEntryUntracked}
+              />
+            ) : (
+              <CalendarView
+                style={{ height: `calc(100% - ${headerHeight}px)` }}
+                entries={entries}
+                currentDate={currentDate}
+                onAddEntry={addCalendarEntry}
+                onUpdateEntry={updateCalendarEntry}
+                onDeleteEntry={deleteCalendarEntry}
+                clients={clients}
+                clientColors={clientColors}
+                defaultStartTime={defaultStartTime}
+                intervalMinutes={calendarInterval}
+                calendarStartTime={calendarStartTime}
+                calendarEndTime={calendarEndTime}
+                onEditEntry={(entry, dateKey) => {
+                  setEditingEntry(entry)
+                  setEditingEntryDateKey(dateKey ?? null)
+                }}
+                editingEntry={editingEntry}
+                editingEntryDateKey={editingEntryDateKey}
+                isEntryUntracked={isEntryUntracked}
+              />
+            )}
+          </Suspense>
         </div>
 
-        <Suspense fallback={<div className="total-hours">Loading view...</div>}>
-          {currentView === 'task' ? (
-            <TaskView
-              dayEntries={entries[dateKey] || []}
-              clients={clients}
-              defaultStartTime={defaultStartTime}
-              onUpdateDayEntries={(newEntries) => updateDayEntries(newEntries)}
-              getJiraUrl={getJiraUrl}
-              isEntryUntracked={isEntryUntracked}
-            />
-          ) : (
-            <CalendarView
-              style={{ height: `calc(100% - ${headerHeight}px)` }}
-              entries={entries}
-              currentDate={currentDate}
-              onAddEntry={addCalendarEntry}
-              onUpdateEntry={updateCalendarEntry}
-              onDeleteEntry={deleteCalendarEntry}
-              clients={clients}
-              clientColors={clientColors}
-              defaultStartTime={defaultStartTime}
-              intervalMinutes={calendarInterval}
-              calendarStartTime={calendarStartTime}
-              calendarEndTime={calendarEndTime}
-              onEditEntry={(entry, dateKey) => {
-                setEditingEntry(entry)
-                setEditingEntryDateKey(dateKey ?? null)
-              }}
-              editingEntry={editingEntry}
-              editingEntryDateKey={editingEntryDateKey}
-              isEntryUntracked={isEntryUntracked}
-            />
-          )}
-        </Suspense>
-      </div>
-
-      {sidebarVisible && (
-        <div className="sidebar-container">
-        <div className="sidebar">
-        <CollapsibleSection 
-          title={`Ticket Summaries (Total: ${getSummaryTotalHours()}h)`}
-          sectionName="summary"
-          isCollapsed={collapsedSections.summary}
-          onToggle={() => toggleSection('summary')}
-        >
-          {getSummary().length > 0 ? (
-            <ul className="client-list">
-              {getSummary().map(item => (
-                <li 
-                  key={item.key} 
-                  className="client-item" 
-                  style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px', opacity: item.allDisabled ? 0.5 : 1 }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                    <div>
-                      {getJiraUrl(item.client, item.ticket) ? (
-                        <a 
-                          href={getJiraUrl(item.client, item.ticket)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="summary-link"
-                          onClick={(e) => {
-                            navigator.clipboard.writeText(item.hours + 'h')
-                            setClickedSummary(item)
-                          }}
-                        >
-                          {item.isUntracked ? `${item.client} (untracked)` : item.key}
-                        </a>
-                      ) : (
-                        <span className="summary-link">
-                          {item.isUntracked ? `${item.client} (untracked)` : item.key}
-                        </span>
-                      )}
-                    </div>
-                    <div className="summary-hours">
-                      {item.hours}h
-                    </div>
-                  </div>
-                  {item.descriptions.length > 0 && (
-                    <ul style={{ marginTop: '8px', paddingLeft: '20px', width: '100%' }}>
-                      {item.descriptions.flatMap((desc) => 
-                        desc.split(/[;\n]/).map((part) => part.trim()).filter(part => part.length > 0)
-                      ).map((desc, idx) => (
-                        <li key={idx} className="summary-description">
-                          {desc}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {!item.isUntracked && (
-                    <div style={{ position: 'absolute', bottom: '10px', right: '10px' }}>
-                      <input
-                        type="checkbox"
-                        checked={item.allDisabled}
-                        ref={(el) => {
-                          if (el) el.indeterminate = item.isIndeterminate
-                        }}
-                        onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
-                        style={{
-                          marginBottom: '0',
-                        }}
-                        title="Toggle all entries for this ticket"
-                      />
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
-              No entries with client yet
-            </div>
-          )}
-        </CollapsibleSection>
-
-        <CollapsibleSection 
-          title="Todo" 
-          sectionName="todo"
-          isCollapsed={collapsedSections.todo}
-          onToggle={() => toggleSection('todo')}
-        >
-          <div className="todo-form" style={{ marginBottom: '15px' }}>
-            <input
-              type="text"
-              placeholder="Todo description"
-              value={newTodoDescription}
-              onChange={(e) => setNewTodoDescription(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
-              style={{ marginBottom: '8px' }}
-            />
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-              <select
-                value={newTodoClient}
-                onChange={(e) => setNewTodoClient(e.target.value)}
-                className="todo-form-field"
-                style={{ flex: 1 }}
+        {sidebarVisible && (
+          <div className="sidebar-container">
+            <div className="sidebar">
+              <CollapsibleSection
+                title={`Ticket Summaries (Total: ${getSummaryTotalHours()}h)`}
+                sectionName="summary"
+                isCollapsed={collapsedSections.summary}
+                onToggle={() => toggleSection('summary')}
               >
-                <option value="">Optional client</option>
-                {clients.map(client => (
-                  <option key={client} value={client}>{client}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                placeholder="Ticket #"
-                value={newTodoTicket}
-                onChange={(e) => setNewTodoTicket(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
-                className="todo-form-field"
-                style={{ flex: 1 }}
-              />
-            </div>
-            <button className="add-button" onClick={handleAddTodo}>
-              Add Todo
-            </button>
-          </div>
-
-          {getSortedTodos().length > 0 ? (
-            <ul className="client-list">
-              {getSortedTodos().map(todo => (
-                <li 
-                  key={todo.id} 
-                  className={`client-item todo-item ${todo.completed ? 'todo-completed' : ''}`}
-                  style={{ 
-                    display: 'flex',
-                    flexFlow: 'column',
-                    gap: '8px',
-                    opacity: todo.completed ? 0.5 : 1,
-                    position: 'relative'
-                  }}
-                >
-                  {editingTodoId === todo.id ? (
-                    <>
-                      <div>
-                        <input
-                          type="text"
-                          value={editTodoDescription}
-                          onChange={(e) => setEditTodoDescription(e.target.value)}
-                          style={{ width: '100%', marginBottom: '8px' }}
-                          placeholder="Todo description"
-                        />
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                          <select
-                            value={editTodoClient}
-                            onChange={(e) => setEditTodoClient(e.target.value)}
-                            className="todo-form-field"
-                            style={{ flex: 1 }}
-                          >
-                            <option value="">Optional client</option>
-                            {clients.map(client => (
-                              <option key={client} value={client}>{client}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            placeholder="Ticket #"
-                            value={editTodoTicket}
-                            onChange={(e) => setEditTodoTicket(e.target.value)}
-                            className="todo-form-field"
-                            style={{ flex: 1 }}
-                          />
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%' }}>
-                        <button onClick={handleCancelEditTodo} style={{ padding: '4px 8px', fontSize: '12px', marginLeft: 'auto' }}>
-                          Cancel
-                        </button>
-                        <button onClick={handleSaveEditTodo} style={{ padding: '4px 8px', fontSize: '12px' }}>
-                          Save
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={todo.completed}
-                            onChange={() => handleToggleTodo(todo.id)}
-                            style={{ 
-                              margin: '0',
-                              flexShrink: 0
-                            }}
-                          />
-                        </div>
-                        {todo.client && (
-                          <div style={{ fontSize: '12px', marginLeft: '10px' }}>
-                            {todo.ticket ? (
-                              getJiraUrl(todo.client, todo.ticket) ? (
-                                <a 
-                                  href={getJiraUrl(todo.client, todo.ticket)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="summary-link"
-                                  style={{ fontSize: '12px' }}
-                                >
-                                  {todo.client}-{todo.ticket}
-                                </a>
-                              ) : (
-                                <span style={{ color: '#666' }}>{todo.client}-{todo.ticket}</span>
-                              )
+                {getSummary().length > 0 ? (
+                  <ul className="client-list">
+                    {getSummary().map(item => (
+                      <li
+                        key={item.key}
+                        className="client-item"
+                        style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px', opacity: item.allDisabled ? 0.5 : 1 }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                          <div>
+                            {getJiraUrl(item.client, item.ticket) ? (
+                              <a
+                                href={getJiraUrl(item.client, item.ticket)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="summary-link"
+                                onClick={(e) => {
+                                  navigator.clipboard.writeText(item.hours + 'h')
+                                  setClickedSummary(item)
+                                }}
+                              >
+                                {item.isUntracked ? `${item.client} (untracked)` : item.key}
+                              </a>
                             ) : (
-                              <span style={{ color: '#666' }}>{todo.client}</span>
+                              <span className="summary-link">
+                                {item.isUntracked ? `${item.client} (untracked)` : item.key}
+                              </span>
                             )}
                           </div>
+                          <div className="summary-hours">
+                            {item.hours}h
+                          </div>
+                        </div>
+                        {item.descriptions.length > 0 && (
+                          <ul style={{ marginTop: '8px', paddingLeft: '20px', width: '100%' }}>
+                            {item.descriptions.flatMap((desc) =>
+                              desc.split(/[;\n]/).map((part) => part.trim()).filter(part => part.length > 0)
+                            ).map((desc, idx) => (
+                              <li key={idx} className="summary-description">
+                                {desc}
+                              </li>
+                            ))}
+                          </ul>
                         )}
-                      </div>
-                      <div 
-                        style={{ 
-                          textDecoration: todo.completed ? 'line-through' : 'none',
-                          paddingRight: '10px',
-                          wordWrap: 'break-word',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => handleStartEditTodo(todo)}
-                        title="Click to edit"
-                      >
-                        {todo.description}
-                      </div>
-                      <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', gap: '8px' }}>
-                        <button 
-                          onClick={() => handleDeleteTodo(todo.id)}
-                          style={{ 
-                            padding: '4px 8px', 
-                            fontSize: '12px'
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
-              No todos yet
-            </div>
-          )}
-        </CollapsibleSection>
-
-        <CollapsibleSection 
-          title="Client Summaries" 
-          sectionName="clients"
-          isCollapsed={collapsedSections.clients}
-          onToggle={() => toggleSection('clients')}
-        >
-          <input
-            type="text"
-            placeholder="New client name"
-            value={newClient}
-            onChange={(e) => setNewClient(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && addClient()}
-          />
-          <button className="add-button" onClick={addClient}>
-            Add Client
-          </button>
-          <ul className="client-list">
-            {clients
-              .sort((a, b) => {
-                const clientTotals = getClientTotals()
-                const aTotals = clientTotals[a] || 0
-                const bTotals = clientTotals[b] || 0
-                // Clients with time first
-                if (aTotals > 0 && bTotals === 0) return -1
-                if (aTotals === 0 && bTotals > 0) return 1
-                // Then alphabetically
-                return a.localeCompare(b)
-              })
-              .map(client => {
-              const clientTotals = getClientTotals()
-              const totalHours = clientTotals[client] ? (clientTotals[client] / 60).toFixed(2) : '0.00'
-              return (
-                <li key={client} className="client-item client-item-with-color">
-                  <div className="client-info">
-                    <span>
-                      {client}
-                      {clientTotals[client] && clientTotals[client] > 0 && (
-                        <span style={{ color: '#999', fontSize: '12px', marginLeft: '8px' }}>
-                          ({totalHours}h)
-                        </span>
-                      )}
-                    </span>
+                        {!item.isUntracked && (
+                          <div style={{ position: 'absolute', bottom: '10px', right: '10px' }}>
+                            <input
+                              type="checkbox"
+                              checked={item.allDisabled}
+                              ref={(el) => {
+                                if (el) el.indeterminate = item.isIndeterminate
+                              }}
+                              onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
+                              style={{
+                                marginBottom: '0',
+                              }}
+                              title="Toggle all entries for this ticket"
+                            />
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                    No entries with client yet
                   </div>
-                  <div className="client-color-picker">
-                    <input
-                      type="color"
-                      value={clientColors[client] || '#2196F3'}
-                      onChange={(e) => setClientColors({ ...clientColors, [client]: e.target.value })}
-                      style={{
-                        marginBottom: '0',
-                      }}
-                      title="Set client color"
-                    />
-                    <div 
-                      className="color-preview"
-                      style={{ 
-                        backgroundColor: clientColors[client] || '#2196F3',
-                        color: getContrastColor(clientColors[client] || '#2196F3')
-                      }}
+                )}
+              </CollapsibleSection>
+
+              <CollapsibleSection
+                title="Todo"
+                sectionName="todo"
+                isCollapsed={collapsedSections.todo}
+                onToggle={() => toggleSection('todo')}
+              >
+                <div className="todo-form" style={{ marginBottom: '15px' }}>
+                  <input
+                    type="text"
+                    placeholder="Todo description"
+                    value={newTodoDescription}
+                    onChange={(e) => setNewTodoDescription(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
+                    style={{ marginBottom: '8px' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <select
+                      value={newTodoClient}
+                      onChange={(e) => setNewTodoClient(e.target.value)}
+                      className="todo-form-field"
+                      style={{ flex: 1 }}
                     >
-                      Aa
-                    </div>
+                      <option value="">Optional client</option>
+                      {clients.map(client => (
+                        <option key={client} value={client}>{client}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Ticket #"
+                      value={newTodoTicket}
+                      onChange={(e) => setNewTodoTicket(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
+                      className="todo-form-field"
+                      style={{ flex: 1 }}
+                    />
                   </div>
-                  <button onClick={() => removeClient(client)}>Remove</button>
-                </li>
-              )
-            })}
-          </ul>
-        </CollapsibleSection>
+                  <button className="add-button" onClick={handleAddTodo}>
+                    Add Todo
+                  </button>
+                </div>
 
-        <CollapsibleSection 
-          title="Settings" 
-          sectionName="settings"
-          isCollapsed={collapsedSections.settings}
-          onToggle={() => toggleSection('settings')}
-        >
-          <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Jira Base URL</h3>
-            <input
-              type="text"
-              placeholder="e.g., https://jira.example.com/browse"
-              value={jiraBaseUrl}
-              onChange={(e) => setJiraBaseUrl(e.target.value)}
-            />
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-              Tickets will link to: {jiraBaseUrl || '(not set)'}/CLIENT-123
+                {getSortedTodos().length > 0 ? (
+                  <ul className="client-list">
+                    {getSortedTodos().map(todo => (
+                      <li
+                        key={todo.id}
+                        className={`client-item todo-item ${todo.completed ? 'todo-completed' : ''}`}
+                        style={{
+                          display: 'flex',
+                          flexFlow: 'column',
+                          gap: '8px',
+                          opacity: todo.completed ? 0.5 : 1,
+                          position: 'relative'
+                        }}
+                      >
+                        {editingTodoId === todo.id ? (
+                          <>
+                            <div>
+                              <input
+                                type="text"
+                                value={editTodoDescription}
+                                onChange={(e) => setEditTodoDescription(e.target.value)}
+                                style={{ width: '100%', marginBottom: '8px' }}
+                                placeholder="Todo description"
+                              />
+                              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                                <select
+                                  value={editTodoClient}
+                                  onChange={(e) => setEditTodoClient(e.target.value)}
+                                  className="todo-form-field"
+                                  style={{ flex: 1 }}
+                                >
+                                  <option value="">Optional client</option>
+                                  {clients.map(client => (
+                                    <option key={client} value={client}>{client}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  placeholder="Ticket #"
+                                  value={editTodoTicket}
+                                  onChange={(e) => setEditTodoTicket(e.target.value)}
+                                  className="todo-form-field"
+                                  style={{ flex: 1 }}
+                                />
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%' }}>
+                              <button onClick={handleCancelEditTodo} style={{ padding: '4px 8px', fontSize: '12px', marginLeft: 'auto' }}>
+                                Cancel
+                              </button>
+                              <button onClick={handleSaveEditTodo} style={{ padding: '4px 8px', fontSize: '12px' }}>
+                                Save
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={todo.completed}
+                                  onChange={() => handleToggleTodo(todo.id)}
+                                  style={{
+                                    margin: '0',
+                                    flexShrink: 0
+                                  }}
+                                />
+                              </div>
+                              {todo.client && (
+                                <div style={{ fontSize: '12px', marginLeft: '10px' }}>
+                                  {todo.ticket ? (
+                                    getJiraUrl(todo.client, todo.ticket) ? (
+                                      <a
+                                        href={getJiraUrl(todo.client, todo.ticket)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="summary-link"
+                                        style={{ fontSize: '12px' }}
+                                      >
+                                        {todo.client}-{todo.ticket}
+                                      </a>
+                                    ) : (
+                                      <span style={{ color: '#666' }}>{todo.client}-{todo.ticket}</span>
+                                    )
+                                  ) : (
+                                    <span style={{ color: '#666' }}>{todo.client}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                textDecoration: todo.completed ? 'line-through' : 'none',
+                                paddingRight: '10px',
+                                wordWrap: 'break-word',
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => handleStartEditTodo(todo)}
+                              title="Click to edit"
+                            >
+                              {todo.description}
+                            </div>
+                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', gap: '8px' }}>
+                              <button
+                                onClick={() => handleDeleteTodo(todo.id)}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                    No todos yet
+                  </div>
+                )}
+              </CollapsibleSection>
+
+              <CollapsibleSection
+                title="Client Summaries"
+                sectionName="clients"
+                isCollapsed={collapsedSections.clients}
+                onToggle={() => toggleSection('clients')}
+              >
+                <input
+                  type="text"
+                  placeholder="New client name"
+                  value={newClient}
+                  onChange={(e) => setNewClient(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addClient()}
+                />
+                <button className="add-button" onClick={addClient}>
+                  Add Client
+                </button>
+                <ul className="client-list">
+                  {clients
+                    .sort((a, b) => {
+                      const clientTotals = getClientTotals()
+                      const aTotals = clientTotals[a] || 0
+                      const bTotals = clientTotals[b] || 0
+                      // Clients with time first
+                      if (aTotals > 0 && bTotals === 0) return -1
+                      if (aTotals === 0 && bTotals > 0) return 1
+                      // Then alphabetically
+                      return a.localeCompare(b)
+                    })
+                    .map(client => {
+                      const clientTotals = getClientTotals()
+                      const totalHours = clientTotals[client] ? (clientTotals[client] / 60).toFixed(2) : '0.00'
+                      return (
+                        <li key={client} className="client-item client-item-with-color">
+                          <div className="client-info">
+                            <span>
+                              {client}
+                              {clientTotals[client] && clientTotals[client] > 0 && (
+                                <span style={{ color: '#999', fontSize: '12px', marginLeft: '8px' }}>
+                                  ({totalHours}h)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="client-color-picker">
+                            <input
+                              type="color"
+                              value={clientColors[client] || '#2196F3'}
+                              onChange={(e) => setClientColors({ ...clientColors, [client]: e.target.value })}
+                              style={{
+                                marginBottom: '0',
+                              }}
+                              title="Set client color"
+                            />
+                            <div
+                              className="color-preview"
+                              style={{
+                                backgroundColor: clientColors[client] || '#2196F3',
+                                color: getContrastColor(clientColors[client] || '#2196F3')
+                              }}
+                            >
+                              Aa
+                            </div>
+                          </div>
+                          <button onClick={() => removeClient(client)}>Remove</button>
+                        </li>
+                      )
+                    })}
+                </ul>
+              </CollapsibleSection>
+
+              <CollapsibleSection
+                title="Settings"
+                sectionName="settings"
+                isCollapsed={collapsedSections.settings}
+                onToggle={() => toggleSection('settings')}
+              >
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Jira Base URL</h3>
+                  <input
+                    type="text"
+                    placeholder="e.g., https://jira.example.com/browse"
+                    value={jiraBaseUrl}
+                    onChange={(e) => setJiraBaseUrl(e.target.value)}
+                  />
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                    Tickets will link to: {jiraBaseUrl || '(not set)'}/CLIENT-123
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Default Start Time</h3>
+                  <input
+                    type="time"
+                    value={defaultStartTime}
+                    onChange={(e) => setDefaultStartTime(e.target.value)}
+                  />
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                    New entries will start at {defaultStartTime} (if no previous entries)
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar Interval</h3>
+                  <select
+                    value={calendarInterval}
+                    defaultValue="15"
+                    onChange={(e) => setCalendarInterval(Number(e.target.value))}
+                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                  >
+                    <option value="5">5 minutes</option>
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">60 minutes</option>
+                  </select>
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                    Drag precision for calendar view
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar Start Time</h3>
+                  <input
+                    type="time"
+                    value={calendarStartTime}
+                    onChange={(e) => setCalendarStartTime(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                    Earliest time to display in calendar
+                  </div>
+                </div>
+
+                <div>
+                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar End Time</h3>
+                  <input
+                    type="time"
+                    value={calendarEndTime}
+                    onChange={(e) => setCalendarEndTime(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                    Latest time to display in calendar
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              <div className="sidebar-section dark-mode-section">
+                <button
+                  className="dark-mode-toggle"
+                  onClick={() => setDarkMode(!darkMode)}
+                  title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                >
+                  {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+                </button>
+              </div>
             </div>
           </div>
+        )}
 
-          <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Default Start Time</h3>
-            <input
-              type="time"
-              value={defaultStartTime}
-              onChange={(e) => setDefaultStartTime(e.target.value)}
-            />
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-              New entries will start at {defaultStartTime} (if no previous entries)
+        {showLogPrompt && clickedSummary && (
+          <div className="calendar-modal-overlay" onClick={() => setShowLogPrompt(false)}>
+            <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+              <h3>Mark as Logged?</h3>
+              <p>Would you like to mark <strong>{clickedSummary.key}</strong> as logged?</p>
+              <div className="modal-buttons">
+                <button className="btn-cancel" onClick={() => { setShowLogPrompt(false); setClickedSummary(null); }}>No</button>
+                <button className="btn-save" onClick={handleMarkAsLogged}>Yes, Mark as Logged</button>
+              </div>
             </div>
           </div>
+        )}
 
-          <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar Interval</h3>
-            <select
-              value={calendarInterval}
-              defaultValue="15"
-              onChange={(e) => setCalendarInterval(Number(e.target.value))}
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
-            >
-              <option value="5">5 minutes</option>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="60">60 minutes</option>
-            </select>
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-              Drag precision for calendar view
+        {showOverlapConfirm && (
+          <div className="calendar-modal-overlay" onClick={() => setShowOverlapConfirm(null)}>
+            <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+              <h3>Time Overlap Warning</h3>
+              <p>Moving this entry will create overlapping time with existing entries on {showOverlapConfirm.toDateKey}. Continue?</p>
+              <div className="modal-buttons">
+                <button className="btn-cancel" onClick={() => setShowOverlapConfirm(null)}>Cancel</button>
+                <button className="btn-save" onClick={executeMoveAndClose}>Continue</button>
+              </div>
             </div>
           </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar Start Time</h3>
-            <input
-              type="time"
-              value={calendarStartTime}
-              onChange={(e) => setCalendarStartTime(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-              Earliest time to display in calendar
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar End Time</h3>
-            <input
-              type="time"
-              value={calendarEndTime}
-              onChange={(e) => setCalendarEndTime(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-              Latest time to display in calendar
-            </div>
-          </div>
-        </CollapsibleSection>
-
-        <div className="sidebar-section dark-mode-section">
-          <button 
-            className="dark-mode-toggle"
-            onClick={() => setDarkMode(!darkMode)}
-            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
-          </button>
-        </div>
+        )}
       </div>
-      </div>
-      )}
-
-      {showLogPrompt && clickedSummary && (
-        <div className="calendar-modal-overlay" onClick={() => setShowLogPrompt(false)}>
-          <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>Mark as Logged?</h3>
-            <p>Would you like to mark <strong>{clickedSummary.key}</strong> as logged?</p>
-            <div className="modal-buttons">
-              <button className="btn-cancel" onClick={() => { setShowLogPrompt(false); setClickedSummary(null); }}>No</button>
-              <button className="btn-save" onClick={handleMarkAsLogged}>Yes, Mark as Logged</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showOverlapConfirm && (
-        <div className="calendar-modal-overlay" onClick={() => setShowOverlapConfirm(null)}>
-          <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
-            <h3>Time Overlap Warning</h3>
-            <p>Moving this entry will create overlapping time with existing entries on {showOverlapConfirm.toDateKey}. Continue?</p>
-            <div className="modal-buttons">
-              <button className="btn-cancel" onClick={() => setShowOverlapConfirm(null)}>Cancel</button>
-              <button className="btn-save" onClick={executeMoveAndClose}>Continue</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <Toaster />
+    </>
   )
 }
 

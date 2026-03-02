@@ -25,8 +25,7 @@ function TaskView({
         const endMinutes = endH * 60 + endM
 
         if (endMinutes < startMinutes) {
-          const adjustedHours = (endH + 12) % 24
-          value = `${String(adjustedHours).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+          value = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`
         }
       }
     }
@@ -73,7 +72,16 @@ function TaskView({
 
   const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number): void => {
     e.preventDefault()
-    const dragIndex = parseInt(e.dataTransfer.getData('text/html'))
+    const dragIndex = parseInt(e.dataTransfer.getData('text/html'), 10)
+    if (
+      !Number.isFinite(dragIndex) ||
+      !Number.isInteger(dragIndex) ||
+      dragIndex < 0 ||
+      dragIndex >= dayEntries.length
+    ) {
+      return
+    }
+    if (dropIndex < 0 || dropIndex >= dayEntries.length) return
     if (dragIndex === dropIndex) return
 
     const updated = [...dayEntries]

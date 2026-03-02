@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import debounce from 'lodash/debounce'
+import type { DebouncedFunc } from 'lodash'
 import type { SearchResult } from './services/searchService'
 import { searchEntries, formatDateForDisplay } from './services/searchService'
 
@@ -16,7 +18,8 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
   const [isSearching, setIsSearching] = useState(false)
   const [confirmNavigation, setConfirmNavigation] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceRef = useRef<DebouncedFunc<(term: string, reqId: number) => Promise<void>> | null>(null)
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -25,29 +28,44 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
   }, [isOpen]);
 
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
+    if (!debounceRef.current) {
+      debounceRef.current = debounce(async (term: string, reqId: number) => {
+        const searchResults = await searchEntries(term)
+        if (reqId === requestIdRef.current) {
+          setResults(searchResults)
+          setIsSearching(false)
+        }
+      }, 250)
     }
 
     if (!searchTerm.trim()) {
+      debounceRef.current.cancel()
+      requestIdRef.current = 0
       setResults([])
       setIsSearching(false)
       return
     }
 
-    setIsSearching(true);
-    debounceRef.current = setTimeout(async () => {
-      const searchResults = await searchEntries(searchTerm);
-      setResults(searchResults)
-      setIsSearching(false)
-    }, 250)
+    requestIdRef.current += 1
+    const reqId = requestIdRef.current
+    setIsSearching(true)
+    debounceRef.current(searchTerm, reqId)
 
     return () => {
       if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
+        debounceRef.current.cancel()
       }
     }
   }, [searchTerm])
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        debounceRef.current.cancel()
+      }
+      requestIdRef.current = 0
+    }
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
