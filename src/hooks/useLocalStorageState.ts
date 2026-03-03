@@ -84,9 +84,6 @@ const defaultParse = <T,>(rawValue: string): T => {
 }
 
 const defaultSerialize = <T,>(value: T): string => {
-  if (typeof value === 'string') {
-    return value
-  }
   return JSON.stringify(value)
 }
 
