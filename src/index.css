@@ -1593,7 +1593,7 @@ body.dark-mode .todo-form-field {
 .pinned-ticket-label {
   font-weight: 600;
   font-size: 13px;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .pinned-ticket-recent {

@@ -172,6 +172,7 @@ function App() {
   const [headerHeight, setHeaderHeight] = useState(0)
   const windowWasBlurred = useRef<boolean>(false)
   const friendlyNameTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const loadedRecentDateKeysRef = useRef<Set<string>>(new Set())
 
   const dateKey = formatLocalDate(currentDate)
 
@@ -281,23 +282,39 @@ function App() {
     if (isLoadingEntries) return
 
     const recentDateKeys = getRecentDateKeys(currentDate)
-    const missingDateKeys = recentDateKeys.filter((key) => entries[key] === undefined)
+    const missingDateKeys = recentDateKeys.filter((key) => !loadedRecentDateKeysRef.current.has(key))
 
     if (missingDateKeys.length === 0) return
 
+    missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.add(key))
+
+    let cancelled = false
     const loadRecentEntries = async () => {
-      const recentEntries = await getEntriesForDays(missingDateKeys)
-      setEntries((prev) => {
-        const next = { ...prev }
-        missingDateKeys.forEach((key) => {
-          next[key] = recentEntries[key] || []
+      try {
+        const recentEntries = await getEntriesForDays(missingDateKeys)
+        if (cancelled) return
+
+        setEntries((prev) => {
+          const next = { ...prev }
+          missingDateKeys.forEach((key) => {
+            if (next[key] === undefined) {
+              next[key] = recentEntries[key] || []
+            }
+          })
+          return next
         })
-        return next
-      })
+      } catch (error) {
+        missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.delete(key))
+        console.error('Failed to load recent entries:', error)
+      }
     }
 
-    loadRecentEntries()
-  }, [currentDate, entries, isLoadingEntries])
+    void loadRecentEntries()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentDate, isLoadingEntries])
 
   useEffect(() => {
     setFriendlyNameDrafts((prev) => {
@@ -311,7 +328,9 @@ function App() {
 
   useEffect(() => {
     return () => {
-      Object.values(friendlyNameTimersRef.current).forEach((timer) => clearTimeout(timer))
+      Object.values(friendlyNameTimersRef.current).forEach((timer) => {
+        clearTimeout(timer)
+      })
       friendlyNameTimersRef.current = {}
     }
   }, [])
