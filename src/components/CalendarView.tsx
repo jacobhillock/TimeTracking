@@ -228,7 +228,6 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
 
     const handleActivityChange = (): void => {
       if (isActive()) {
-        syncNow()
         scheduleNowUpdates()
         return
       }
