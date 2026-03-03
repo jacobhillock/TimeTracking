@@ -3,7 +3,7 @@ import { migrateFromLocalStorage } from './services/db'
 import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
 import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
 import type { TimeEntry, Todo } from './services/types'
-import type { ClientColors, CollapsedSections, EditableTimeEntry, EntriesByDate, ViewMode } from './types/app'
+import type { ClientColors, CollapsedSections, EditableTimeEntry, EntriesByDate, PinnedTicket, TicketOption, TicketOptionGroups, ViewMode } from './types/app'
 import useLocalStorageState, { STORAGE_KEYS } from './hooks/useLocalStorageState'
 import SearchModal from './SearchModal'
 import CollapsibleSection from './components/CollapsibleSection'
@@ -42,6 +42,12 @@ interface OverlapConfirmState {
   entry: TimeEntry
   fromDateKey: string
   toDateKey: string
+}
+
+interface TicketRecentStats {
+  client: string
+  ticket: string
+  lastLoggedDate?: string
 }
 
 function getContrastColor(hexColor: string): string {
@@ -98,6 +104,33 @@ const dateKeyToLocalNoon = (value: string): Date | null => {
   return new Date(year, month - 1, day, 12, 0, 0, 0)
 }
 
+const normalizeTicketPart = (value: string): string => value.trim()
+
+const toTicketKey = (client: string, ticket: string): string =>
+  `${normalizeTicketPart(client)}-${normalizeTicketPart(ticket)}`
+
+const toTicketKeyLookup = (client: string, ticket: string): string =>
+  toTicketKey(client, ticket).toLowerCase()
+
+const getRecentDateKeys = (anchorDate: Date): string[] => {
+  const keys: string[] = []
+  for (let i = 0; i <= 7; i++) {
+    const date = new Date(anchorDate)
+    date.setDate(date.getDate() - i)
+    keys.push(formatLocalDate(date))
+  }
+  return keys
+}
+
+const sortTicketOptions = (a: TicketOption, b: TicketOption): number => {
+  const dateA = a.sortByRecentDate || ''
+  const dateB = b.sortByRecentDate || ''
+  if (dateA !== dateB) {
+    return dateB.localeCompare(dateA)
+  }
+  return a.key.localeCompare(b.key)
+}
+
 function App() {
   const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()))
   const [currentView, setCurrentView] = useLocalStorageState<ViewMode>(STORAGE_KEYS.CURRENT_VIEW, 'calendar', {
@@ -121,6 +154,7 @@ function App() {
   const [darkMode, setDarkMode] = useLocalStorageState<boolean>(STORAGE_KEYS.DARK_MODE, false)
   const [sidebarVisible, setSidebarVisible] = useLocalStorageState<boolean>(STORAGE_KEYS.SIDEBAR_VISIBLE, true)
   const [collapsedSections, setCollapsedSections] = useLocalStorageState<CollapsedSections>(STORAGE_KEYS.COLLAPSED_SECTIONS, {})
+  const [pinnedTickets, setPinnedTickets] = useLocalStorageState<PinnedTicket[]>(STORAGE_KEYS.PINNED_TICKETS, [])
   const [newClient, setNewClient] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [clickedSummary, setClickedSummary] = useState<SummaryItem | null>(null)
@@ -133,9 +167,12 @@ function App() {
   const [editTodoDescription, setEditTodoDescription] = useState('')
   const [editTodoClient, setEditTodoClient] = useState('')
   const [editTodoTicket, setEditTodoTicket] = useState('')
+  const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({})
   const headerRef = useRef<HTMLDivElement | null>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
   const windowWasBlurred = useRef<boolean>(false)
+  const friendlyNameTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const loadedRecentDateKeysRef = useRef<Set<string>>(new Set())
 
   const dateKey = formatLocalDate(currentDate)
 
@@ -240,6 +277,63 @@ function App() {
     }
     loadTodos()
   }, [dateKey])
+
+  useEffect(() => {
+    if (isLoadingEntries) return
+
+    const recentDateKeys = getRecentDateKeys(currentDate)
+    const missingDateKeys = recentDateKeys.filter((key) => !loadedRecentDateKeysRef.current.has(key))
+
+    if (missingDateKeys.length === 0) return
+
+    missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.add(key))
+
+    let cancelled = false
+    const loadRecentEntries = async () => {
+      try {
+        const recentEntries = await getEntriesForDays(missingDateKeys)
+        if (cancelled) return
+
+        setEntries((prev) => {
+          const next = { ...prev }
+          missingDateKeys.forEach((key) => {
+            if (next[key] === undefined) {
+              next[key] = recentEntries[key] || []
+            }
+          })
+          return next
+        })
+      } catch (error) {
+        missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.delete(key))
+        console.error('Failed to load recent entries:', error)
+      }
+    }
+
+    void loadRecentEntries()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentDate, isLoadingEntries])
+
+  useEffect(() => {
+    setFriendlyNameDrafts((prev) => {
+      const next: Record<string, string> = {}
+      pinnedTickets.forEach((ticket) => {
+        next[ticket.key] = prev[ticket.key] ?? ticket.friendlyName ?? ''
+      })
+      return next
+    })
+  }, [pinnedTickets])
+
+  useEffect(() => {
+    return () => {
+      Object.values(friendlyNameTimersRef.current).forEach((timer) => {
+        clearTimeout(timer)
+      })
+      friendlyNameTimersRef.current = {}
+    }
+  }, [])
 
   const updateDayEntries = (newEntries: TimeEntry[], specificDateKey: string | null = null): void => {
     const key = specificDateKey || dateKey
@@ -422,6 +516,181 @@ function App() {
     const completed = todos.filter(t => t.completed).sort((a, b) => b.id - a.id)
     return [...uncompleted, ...completed]
   }
+
+  const isTicketPinned = (client: string, ticket: string): boolean => {
+    const lookup = toTicketKeyLookup(client, ticket)
+    return pinnedTickets.some((pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup)
+  }
+
+  const pinTicket = (client: string, ticket: string): void => {
+    const trimmedClient = normalizeTicketPart(client)
+    const trimmedTicket = normalizeTicketPart(ticket)
+    if (!trimmedClient || !trimmedTicket) return
+
+    const key = toTicketKey(trimmedClient, trimmedTicket)
+    if (isTicketPinned(trimmedClient, trimmedTicket)) return
+
+    setPinnedTickets((prev) => [
+      ...prev,
+      {
+        key,
+        client: trimmedClient,
+        ticket: trimmedTicket,
+        pinnedAt: dateKey
+      }
+    ])
+  }
+
+  const unpinTicket = (key: string): void => {
+    if (friendlyNameTimersRef.current[key]) {
+      clearTimeout(friendlyNameTimersRef.current[key])
+      delete friendlyNameTimersRef.current[key]
+    }
+    setFriendlyNameDrafts((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    setPinnedTickets((prev) => prev.filter((ticket) => ticket.key !== key))
+  }
+
+  const updatePinnedFriendlyName = (key: string, friendlyName: string): void => {
+    setPinnedTickets((prev) => prev.map((ticket) => (
+      ticket.key === key
+        ? { ...ticket, friendlyName }
+        : ticket
+    )))
+  }
+
+  const handlePinnedFriendlyNameChange = (key: string, value: string): void => {
+    setFriendlyNameDrafts((prev) => ({ ...prev, [key]: value }))
+    if (friendlyNameTimersRef.current[key]) {
+      clearTimeout(friendlyNameTimersRef.current[key])
+    }
+    friendlyNameTimersRef.current[key] = setTimeout(() => {
+      updatePinnedFriendlyName(key, value)
+      delete friendlyNameTimersRef.current[key]
+    }, 300)
+  }
+
+  const getRecentTicketStats = (): Record<string, TicketRecentStats> => {
+    const recentDateKeys = getRecentDateKeys(currentDate)
+    const stats: Record<string, TicketRecentStats> = {}
+
+    recentDateKeys.forEach((recentDateKey) => {
+      const dayEntries = entries[recentDateKey] || []
+      dayEntries.forEach((entry) => {
+        const client = normalizeTicketPart(entry.client)
+        const ticket = normalizeTicketPart(entry.ticket)
+        if (!client || !ticket) return
+        const lookup = toTicketKeyLookup(client, ticket)
+        const currentLastLogged = stats[lookup]?.lastLoggedDate
+        if (!currentLastLogged || recentDateKey > currentLastLogged) {
+          stats[lookup] = { client, ticket, lastLoggedDate: recentDateKey }
+        }
+      })
+    })
+
+    return stats
+  }
+
+  const recentTicketStats = getRecentTicketStats()
+
+  const getTicketOptionGroups = (): TicketOptionGroups => {
+    const groups: TicketOptionGroups = { pinned: [], todos: [], recent: [] }
+    const seenGlobal = new Set<string>()
+
+    pinnedTickets.forEach((pinned) => {
+      const lookup = toTicketKeyLookup(pinned.client, pinned.ticket)
+      if (seenGlobal.has(lookup)) return
+
+      const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate
+      groups.pinned.push({
+        key: pinned.key,
+        client: pinned.client,
+        ticket: pinned.ticket,
+        source: 'pinned',
+        friendlyName: pinned.friendlyName,
+        lastLoggedDate,
+        sortByRecentDate: lastLoggedDate
+      })
+      seenGlobal.add(lookup)
+    })
+
+    const todosSeen = new Set<string>()
+    todos
+      .filter((todo) => !todo.completed || todo.completedDate === dateKey)
+      .filter((todo) => Boolean(todo.client && todo.ticket))
+      .forEach((todo) => {
+        const client = normalizeTicketPart(todo.client || '')
+        const ticket = normalizeTicketPart(todo.ticket || '')
+        if (!client || !ticket) return
+
+        const lookup = toTicketKeyLookup(client, ticket)
+        if (todosSeen.has(lookup) || seenGlobal.has(lookup)) return
+
+        const pinnedMatch = pinnedTickets.find((pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup)
+        const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate
+        groups.todos.push({
+          key: toTicketKey(client, ticket),
+          client,
+          ticket,
+          source: 'todo',
+          friendlyName: pinnedMatch?.friendlyName,
+          lastLoggedDate,
+          sortByRecentDate: lastLoggedDate
+        })
+        todosSeen.add(lookup)
+        seenGlobal.add(lookup)
+      })
+
+    const recentSeen = new Set<string>()
+    Object.entries(recentTicketStats).forEach(([lookup, stats]) => {
+      if (recentSeen.has(lookup) || seenGlobal.has(lookup)) return
+      const client = stats.client
+      const ticket = stats.ticket
+      if (!client || !ticket) return
+
+      const pinnedMatch = pinnedTickets.find((pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup)
+      groups.recent.push({
+        key: toTicketKey(client, ticket),
+        client,
+        ticket,
+        source: 'recent',
+        friendlyName: pinnedMatch?.friendlyName,
+        lastLoggedDate: stats.lastLoggedDate,
+        sortByRecentDate: stats.lastLoggedDate
+      })
+      recentSeen.add(lookup)
+      seenGlobal.add(lookup)
+    })
+
+    groups.pinned.sort(sortTicketOptions)
+    groups.todos.sort(sortTicketOptions)
+    groups.recent.sort(sortTicketOptions)
+    groups.recent = groups.recent.slice(0, 30)
+
+    return groups
+  }
+
+  const ticketOptionGroups = getTicketOptionGroups()
+
+  const pinnedTicketsForDisplay = [...pinnedTickets]
+    .map((ticket) => {
+      const lookup = toTicketKeyLookup(ticket.client, ticket.ticket)
+      return {
+        ...ticket,
+        lastLoggedDate: recentTicketStats[lookup]?.lastLoggedDate
+      }
+    })
+    .sort((a, b) => {
+      const dateA = a.lastLoggedDate || ''
+      const dateB = b.lastLoggedDate || ''
+      if (dateA !== dateB) {
+        return dateB.localeCompare(dateA)
+      }
+      return a.key.localeCompare(b.key)
+    })
 
   const getJiraUrl = (client?: string, ticket?: string): string | undefined => {
     if (jiraBaseUrl && client && ticket) {
@@ -697,6 +966,7 @@ function App() {
                 }}
                 editingEntry={editingEntry}
                 editingEntryDateKey={editingEntryDateKey}
+                ticketOptions={ticketOptionGroups}
                 isEntryUntracked={isEntryUntracked}
               />
             )}
@@ -741,8 +1011,19 @@ function App() {
                               </span>
                             )}
                           </div>
-                          <div className="summary-hours">
-                            {item.hours}h
+                          <div className="summary-actions">
+                            <div className="summary-hours">
+                              {item.hours}h
+                            </div>
+                            {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
+                              <button
+                                className="summary-pin-button"
+                                onClick={() => pinTicket(item.client, item.ticket)}
+                                title="Pin ticket"
+                              >
+                                Pin
+                              </button>
+                            )}
                           </div>
                         </div>
                         {item.descriptions.length > 0 && (
@@ -778,6 +1059,41 @@ function App() {
                 ) : (
                   <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
                     No entries with client yet
+                  </div>
+                )}
+              </CollapsibleSection>
+
+              <CollapsibleSection
+                title="Pinned Tickets"
+                sectionName="pinnedTickets"
+                isCollapsed={collapsedSections.pinnedTickets}
+                onToggle={() => toggleSection('pinnedTickets')}
+              >
+                {pinnedTicketsForDisplay.length > 0 ? (
+                  <ul className="client-list">
+                    {pinnedTicketsForDisplay.map((ticket) => (
+                      <li key={ticket.key} className="client-item pinned-ticket-item">
+                        <div className="pinned-ticket-header">
+                          <span className="pinned-ticket-label">
+                            {ticket.friendlyName?.trim() ? `${ticket.friendlyName.trim()} (${ticket.key})` : ticket.key}
+                          </span>
+                          <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
+                        </div>
+                        <div className="pinned-ticket-recent">
+                          Last logged: {ticket.lastLoggedDate || '> 7 days ago'}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Friendly name (optional)"
+                          value={friendlyNameDrafts[ticket.key] ?? ticket.friendlyName ?? ''}
+                          onChange={(e) => handlePinnedFriendlyNameChange(ticket.key, e.target.value)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                    No pinned tickets yet
                   </div>
                 )}
               </CollapsibleSection>

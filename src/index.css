@@ -459,6 +459,27 @@ body.dark-mode .app-toast-close {
   font-weight: bold;
 }
 
+.summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-pin-button {
+  padding: 3px 8px;
+  border: 1px solid #007bff;
+  background: #fff;
+  color: #007bff;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.summary-pin-button:hover {
+  background: #007bff;
+  color: #fff;
+}
+
 a.summary-link:hover {
   text-decoration: none;
   opacity: 0.8;
@@ -466,6 +487,17 @@ a.summary-link:hover {
 
 body.dark-mode .summary-link {
   color: #4a9eff;
+}
+
+body.dark-mode .summary-pin-button {
+  background: #2a2a2a;
+  border-color: #4a9eff;
+  color: #4a9eff;
+}
+
+body.dark-mode .summary-pin-button:hover {
+  background: #4a9eff;
+  color: #fff;
 }
 
 .section-content {
@@ -922,6 +954,16 @@ body.dark-mode .modal-field textarea {
 .modal-field textarea:focus {
   outline: none;
   border-color: #007bff;
+}
+
+.modal-split-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.modal-split-field {
+  flex: 1;
 }
 
 .modal-buttons {
@@ -1532,4 +1574,33 @@ body.dark-mode .todo-form-field {
   background: #2a2a2a;
   border-color: #444;
   color: #e0e0e0;
+}
+
+.pinned-ticket-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pinned-ticket-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pinned-ticket-label {
+  font-weight: 600;
+  font-size: 13px;
+  overflow-wrap: break-word;
+}
+
+.pinned-ticket-recent {
+  font-size: 12px;
+  color: #666;
+}
+
+body.dark-mode .pinned-ticket-recent {
+  color: #aaa;
 }
