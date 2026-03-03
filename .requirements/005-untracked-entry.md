@@ -1,4 +1,4 @@
-# Untracked Entry
+# ✅ Untracked Entry
 
 ## Allow for empty ticket #
 

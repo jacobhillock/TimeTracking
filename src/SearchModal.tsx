@@ -1,13 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
-import { searchEntries, formatDateForDisplay } from './services/searchService';
+import { useState, useEffect, useRef } from 'react'
+import debounce from 'lodash/debounce'
+import type { DebouncedFunc } from 'lodash'
+import type { SearchResult } from './services/searchService'
+import { searchEntries, formatDateForDisplay } from './services/searchService'
 
-function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDate }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [results, setResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [confirmNavigation, setConfirmNavigation] = useState(null);
-  const inputRef = useRef(null);
-  const debounceRef = useRef(null);
+interface SearchModalProps {
+  isOpen: boolean
+  onClose: () => void
+  currentDate: Date
+  currentView: 'task' | 'calendar'
+  onNavigateToDate: (date: string) => void
+}
+
+function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDate }: SearchModalProps) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [confirmNavigation, setConfirmNavigation] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const debounceRef = useRef<DebouncedFunc<(term: string, reqId: number) => Promise<void>> | null>(null)
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -16,42 +28,57 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
   }, [isOpen]);
 
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
+    if (!debounceRef.current) {
+      debounceRef.current = debounce(async (term: string, reqId: number) => {
+        const searchResults = await searchEntries(term)
+        if (reqId === requestIdRef.current) {
+          setResults(searchResults)
+          setIsSearching(false)
+        }
+      }, 250)
     }
 
     if (!searchTerm.trim()) {
-      setResults([]);
-      setIsSearching(false);
-      return;
+      debounceRef.current.cancel()
+      requestIdRef.current = 0
+      setResults([])
+      setIsSearching(false)
+      return
     }
 
-    setIsSearching(true);
-    debounceRef.current = setTimeout(async () => {
-      const searchResults = await searchEntries(searchTerm);
-      setResults(searchResults);
-      setIsSearching(false);
-    }, 250);
+    requestIdRef.current += 1
+    const reqId = requestIdRef.current
+    setIsSearching(true)
+    debounceRef.current(searchTerm, reqId)
 
     return () => {
       if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
+        debounceRef.current.cancel()
       }
-    };
-  }, [searchTerm]);
+    }
+  }, [searchTerm])
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+    return () => {
+      if (debounceRef.current) {
+        debounceRef.current.cancel()
       }
-    };
+      requestIdRef.current = 0
+    }
+  }, [])
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose()
+      }
+    }
 
-  const handleResultClick = (resultDate) => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  const handleResultClick = (resultDate: string): 'already-viewing' | void => {
     const currentDateKey = currentDate.toISOString().split('T')[0]
     
     // Check if we're already viewing this date
@@ -93,7 +120,7 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
     setConfirmNavigation(null)
   }
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   return (
     <div className="search-modal-overlay" onClick={onClose}>
@@ -222,7 +249,7 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
         )}
       </div>
     </div>
-  );
+  )
 }
 
-export default SearchModal;
+export default SearchModal

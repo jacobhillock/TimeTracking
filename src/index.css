@@ -260,6 +260,69 @@ body.dark-mode .dark-mode-toggle:hover {
   font-size: 14px;
 }
 
+.app-toast-viewport {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.app-toast {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-left: 4px solid #007bff;
+  border-radius: 8px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+  padding: 12px 40px 12px 12px;
+  position: relative;
+  pointer-events: auto;
+}
+
+.app-toast-error {
+  border-left-color: #d32f2f;
+}
+
+.app-toast-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.app-toast-description {
+  font-size: 13px;
+  color: #4f4f4f;
+}
+
+.app-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: #444;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+body.dark-mode .app-toast {
+  background: #2a2a2a;
+  border-color: #3a3a3a;
+}
+
+body.dark-mode .app-toast-description {
+  color: #c7c7c7;
+}
+
+body.dark-mode .app-toast-close {
+  color: #ddd;
+}
+
 .time-entry input:focus,
 .time-entry select:focus {
   outline: none;
