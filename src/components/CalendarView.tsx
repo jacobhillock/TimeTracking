@@ -40,7 +40,10 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const [resizingEntry, setResizingEntry] = useState<EditableTimeEntry | null>(null)
   const [resizeEdge, setResizeEdge] = useState<ResizeEdge | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [now, setNow] = useState<Date>(() => new Date())
   const gridRef = useRef<HTMLDivElement | null>(null)
+  const nowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const businessWeekDates = getBusinessWeekDates()
 
   const handleSave = async () => {
@@ -191,6 +194,60 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     }
   }, [resizingEntry, resizeEdge])
 
+  useEffect(() => {
+    const clearNowTimers = (): void => {
+      if (nowTimeoutRef.current) {
+        clearTimeout(nowTimeoutRef.current)
+        nowTimeoutRef.current = null
+      }
+      if (nowIntervalRef.current) {
+        clearInterval(nowIntervalRef.current)
+        nowIntervalRef.current = null
+      }
+    }
+
+    const syncNow = (): void => setNow(new Date())
+    const isActive = (): boolean => document.visibilityState === 'visible' && (typeof document.hasFocus !== 'function' || document.hasFocus())
+
+    const scheduleNowUpdates = (): void => {
+      clearNowTimers()
+
+      if (!isActive()) {
+        return
+      }
+
+      syncNow()
+      const timestamp = new Date()
+      const delayToNextMinute = Math.max(0, (60 - timestamp.getSeconds()) * 1000 - timestamp.getMilliseconds())
+
+      nowTimeoutRef.current = setTimeout(() => {
+        syncNow()
+        nowIntervalRef.current = setInterval(syncNow, 60_000)
+      }, delayToNextMinute)
+    }
+
+    const handleActivityChange = (): void => {
+      if (isActive()) {
+        scheduleNowUpdates()
+        return
+      }
+
+      clearNowTimers()
+    }
+
+    scheduleNowUpdates()
+    window.addEventListener('focus', handleActivityChange)
+    window.addEventListener('blur', handleActivityChange)
+    document.addEventListener('visibilitychange', handleActivityChange)
+
+    return () => {
+      clearNowTimers()
+      window.removeEventListener('focus', handleActivityChange)
+      window.removeEventListener('blur', handleActivityChange)
+      document.removeEventListener('visibilitychange', handleActivityChange)
+    }
+  }, [])
+
   const handleEntryMouseEnter = (entry: TimeEntry): void => {
     const startMin = timeToMinutes(entry.startTime)
     const endMin = timeToMinutes(entry.endTime)
@@ -213,6 +270,13 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
 
   const hourMarkers = getHourMarkers()
   const { start: visibleStart, end: visibleEnd, duration: visibleDuration } = getVisibleMinutes()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const currentTimeMode = currentMinutes <= visibleStart ? 'before' : currentMinutes >= visibleEnd ? 'after' : 'within'
+  const currentTimeTopPercentRaw = currentTimeMode === 'before' ? 0 : currentTimeMode === 'after' ? 100 : ((currentMinutes - visibleStart) / visibleDuration) * 100
+  const currentTimeTopPercent = Math.max(0, Math.min(100, currentTimeTopPercentRaw))
+  const currentTimeLineTop = currentTimeMode === 'after' ? 'calc(100% - 2px)' : `${currentTimeTopPercent}%`
+  const currentTimeLabelTop = currentTimeMode === 'before' ? '4px' : currentTimeMode === 'after' ? 'calc(100% - 4px)' : `${currentTimeTopPercent}%`
+  const currentTimeLabel = minutesToTime(currentMinutes)
 
   return (
     <div className="calendar-view" style={style}>
@@ -345,6 +409,17 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
             </div>
           )
         })}
+
+        <div className="calendar-current-time-overlay" aria-hidden="true">
+          <div className="calendar-current-time-line" style={{ top: currentTimeLineTop }} />
+          <div
+            className={`calendar-current-time-label calendar-current-time-label-${currentTimeMode}`}
+            style={{ top: currentTimeLabelTop }}
+            title={`Current time ${currentTimeLabel}`}
+          >
+            {currentTimeLabel}
+          </div>
+        </div>
       </div>
 
       {editingEntry && (
