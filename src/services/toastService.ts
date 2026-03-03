@@ -33,10 +33,17 @@ export const markToastSystemReady = (): void => {
   }
 }
 
-export const notifyStorageParseFailure = (key: string): void => {
+export const notifyErrorToast = (title: string, description: string): void => {
   enqueueToast({
-    title: 'Settings reset',
-    description: `Invalid saved value for "${key}". Using defaults.`,
+    title,
+    description,
     type: 'error'
   })
+}
+
+export const notifyStorageParseFailure = (key: string): void => {
+  notifyErrorToast(
+    'Settings reset',
+    `Invalid saved value for "${key}". Using defaults.`
+  )
 }

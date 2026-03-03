@@ -8,6 +8,7 @@ import useLocalStorageState, { STORAGE_KEYS } from './hooks/useLocalStorageState
 import SearchModal from './SearchModal'
 import CollapsibleSection from './components/CollapsibleSection'
 import Toaster from './components/Toaster'
+import { notifyErrorToast } from './services/toastService'
 
 const CalendarView = lazy(() => import('./components/CalendarView'))
 const TaskView = lazy(() => import('./components/TaskView'))
@@ -61,8 +62,24 @@ const parseNumber = (fallback: number) => (rawValue: string): number => {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const toLocalNoon = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)
+}
+
+const dateKeyToLocalNoon = (value: string): Date => {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day, 12, 0, 0, 0)
+}
+
 function App() {
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()))
   const [currentView, setCurrentView] = useLocalStorageState<ViewMode>(STORAGE_KEYS.CURRENT_VIEW, 'calendar', {
     parse: parseCurrentView
   })
@@ -100,7 +117,7 @@ function App() {
   const [headerHeight, setHeaderHeight] = useState(0)
   const windowWasBlurred = useRef<boolean>(false)
 
-  const dateKey = currentDate.toISOString().split('T')[0]
+  const dateKey = formatLocalDate(currentDate)
 
   useEffect(() => {
     const handleBlur = () => {
@@ -127,14 +144,23 @@ function App() {
     async function initializeDB() {
       try {
         await migrateFromLocalStorage()
-        setIsLoadingEntries(false)
         console.log('Database initialized and migration complete')
       } catch (error) {
         console.error('Failed to initialize database:', error)
+        notifyErrorToast('Initialization failed', 'Failed to initialize database. Attempting local fallback.')
         const saved = localStorage.getItem('timeEntries')
         if (saved) {
-          setEntries(JSON.parse(saved))
+          try {
+            const parsed = JSON.parse(saved)
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              setEntries(parsed as EntriesByDate)
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse legacy localStorage timeEntries', parseError)
+            notifyErrorToast('Recovery failed', 'Could not parse legacy time entries from local storage.')
+          }
         }
+      } finally {
         setIsLoadingEntries(false)
       }
     }
@@ -165,7 +191,7 @@ function App() {
         for (let i = 0; i < 5; i++) {
           const date = new Date(monday)
           date.setDate(date.getDate() + i)
-          weekDates.push(date.toISOString().split('T')[0])
+          weekDates.push(formatLocalDate(date))
         }
 
         // Only fetch dates we don't have yet
@@ -218,12 +244,10 @@ function App() {
     if (!showOverlapConfirm) return
     const { entry, fromDateKey, toDateKey } = showOverlapConfirm
     await moveEntry(fromDateKey, toDateKey, entry)
-    const fromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== entry.id)
-    const toEntries = entries[toDateKey] || []
     setEntries((prev) => ({
       ...prev,
-      [fromDateKey]: fromEntries,
-      [toDateKey]: [...toEntries, entry]
+      [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== entry.id),
+      [toDateKey]: [...(prev[toDateKey] || []), entry]
     }))
     setShowOverlapConfirm(null)
     setEditingEntry(null)
@@ -263,12 +287,10 @@ function App() {
     }
 
     await moveEntry(fromDateKey, targetDateKey, updatedEntry)
-    const fromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id)
-    const toEntries = entries[targetDateKey] || []
     setEntries((prev) => ({
       ...prev,
-      [fromDateKey]: fromEntries,
-      [targetDateKey]: [...toEntries, updatedEntry]
+      [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id),
+      [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntry]
     }))
     return { shouldClose: true }
   }
@@ -544,15 +566,15 @@ function App() {
   return (
     <>
       <div className="app">
-        <SearchModal
-          isOpen={isSearchOpen}
-          onClose={() => setIsSearchOpen(false)}
-          currentDate={currentDate}
-          currentView={currentView}
-          onNavigateToDate={(date) => {
-            setCurrentDate(new Date(date + 'T12:00:00'))
-          }}
-        />
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        currentDate={currentDate}
+        currentView={currentView}
+        onNavigateToDate={(date) => {
+          setCurrentDate(dateKeyToLocalNoon(date))
+        }}
+      />
         <div className="main-content">
           <button
             className="sidebar-toggle-button"
@@ -581,14 +603,14 @@ function App() {
               <button onClick={() => changeDate(-1)}>← Previous</button>
               <span>{formatDate(currentDate)}</span>
               <button onClick={() => changeDate(1)}>Next →</button>
-              <button onClick={() => setCurrentDate(new Date())}>Today</button>
+              <button onClick={() => setCurrentDate(toLocalNoon(new Date()))}>Today</button>
               <div className="date-picker-wrapper">
                 <span className="calendar-icon" onClick={handleCalendarClick}>📅</span>
                 <input
                   id="date-picker"
                   type="date"
-                  value={currentDate.toISOString().split('T')[0]}
-                  onChange={(e) => setCurrentDate(new Date(e.target.value + 'T12:00:00'))}
+                  value={formatLocalDate(currentDate)}
+                  onChange={(e) => setCurrentDate(dateKeyToLocalNoon(e.target.value))}
                   className="date-picker-input"
                 />
               </div>
@@ -902,7 +924,7 @@ function App() {
                   Add Client
                 </button>
                 <ul className="client-list">
-                  {clients
+                  {[...clients]
                     .sort((a, b) => {
                       const clientTotals = getClientTotals()
                       const aTotals = clientTotals[a] || 0
