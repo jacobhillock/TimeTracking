@@ -609,6 +609,9 @@ body.dark-mode .calendar-grid {
 }
 
 .calendar-hour-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 8px 4px;
   font-size: 11px;
@@ -662,6 +665,12 @@ body.dark-mode .calendar-hour-slot {
   inset: 0;
   pointer-events: none;
   z-index: 25;
+  overflow: visible;
+}
+
+.calendar-current-time-overlay-content {
+  position: relative;
+  width: 100%;
 }
 
 .calendar-current-time-line {
