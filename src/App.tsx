@@ -73,8 +73,28 @@ const toLocalNoon = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)
 }
 
-const dateKeyToLocalNoon = (value: string): Date => {
-  const [year, month, day] = value.split('-').map(Number)
+const dateKeyToLocalNoon = (value: string): Date | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null
+  }
+
+  const [yearRaw, monthRaw, dayRaw] = value.split('-')
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+  const day = Number(dayRaw)
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null
+  }
+  if (month < 1 || month > 12) {
+    return null
+  }
+
+  const maxDay = new Date(year, month, 0).getDate()
+  if (day < 1 || day > maxDay) {
+    return null
+  }
+
   return new Date(year, month - 1, day, 12, 0, 0, 0)
 }
 
@@ -243,15 +263,20 @@ function App() {
   const executeMoveAndClose = async () => {
     if (!showOverlapConfirm) return
     const { entry, fromDateKey, toDateKey } = showOverlapConfirm
-    await moveEntry(fromDateKey, toDateKey, entry)
-    setEntries((prev) => ({
-      ...prev,
-      [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== entry.id),
-      [toDateKey]: [...(prev[toDateKey] || []), entry]
-    }))
-    setShowOverlapConfirm(null)
-    setEditingEntry(null)
-    setEditingEntryDateKey(null)
+    try {
+      await moveEntry(fromDateKey, toDateKey, entry)
+      setEntries((prev) => ({
+        ...prev,
+        [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== entry.id),
+        [toDateKey]: [...(prev[toDateKey] || []), entry]
+      }))
+      setShowOverlapConfirm(null)
+      setEditingEntry(null)
+      setEditingEntryDateKey(null)
+    } catch (error) {
+      console.error('Failed to move entry after overlap confirmation:', error)
+      notifyErrorToast('Move failed', 'Could not move the entry. Please try again.')
+    }
   }
 
   const updateCalendarEntry = async (updatedEntry: TimeEntry, newDateKey?: string): Promise<{ shouldClose: boolean }> => {
@@ -286,13 +311,19 @@ function App() {
       return { shouldClose: false }
     }
 
-    await moveEntry(fromDateKey, targetDateKey, updatedEntry)
-    setEntries((prev) => ({
-      ...prev,
-      [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id),
-      [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntry]
-    }))
-    return { shouldClose: true }
+    try {
+      await moveEntry(fromDateKey, targetDateKey, updatedEntry)
+      setEntries((prev) => ({
+        ...prev,
+        [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id),
+        [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntry]
+      }))
+      return { shouldClose: true }
+    } catch (error) {
+      console.error('Failed to move entry:', error)
+      notifyErrorToast('Move failed', 'Could not move the entry. Please try again.')
+      return { shouldClose: false }
+    }
   }
 
   const changeDate = (days: number): void => {
@@ -572,7 +603,12 @@ function App() {
         currentDate={currentDate}
         currentView={currentView}
         onNavigateToDate={(date) => {
-          setCurrentDate(dateKeyToLocalNoon(date))
+          const parsedDate = dateKeyToLocalNoon(date)
+          if (parsedDate) {
+            setCurrentDate(parsedDate)
+          } else {
+            notifyErrorToast('Invalid date', 'Could not navigate to the selected date.')
+          }
         }}
       />
         <div className="main-content">
@@ -610,7 +646,14 @@ function App() {
                   id="date-picker"
                   type="date"
                   value={formatLocalDate(currentDate)}
-                  onChange={(e) => setCurrentDate(dateKeyToLocalNoon(e.target.value))}
+                  onChange={(e) => {
+                    const parsedDate = dateKeyToLocalNoon(e.target.value)
+                    if (parsedDate) {
+                      setCurrentDate(parsedDate)
+                    } else {
+                      notifyErrorToast('Invalid date', 'Please select a valid date.')
+                    }
+                  }}
                   className="date-picker-input"
                 />
               </div>
