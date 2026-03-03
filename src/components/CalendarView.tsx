@@ -15,6 +15,10 @@ interface HoveredTimeRange {
   end: number
 }
 
+interface GridMetrics {
+  scrollHeight: number
+}
+
 function getContrastColor(hexColor: string): string {
   const hex = hexColor.replace('#', '')
   const r = parseInt(hex.substr(0, 2), 16)
@@ -41,6 +45,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const [resizeEdge, setResizeEdge] = useState<ResizeEdge | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [now, setNow] = useState<Date>(() => new Date())
+  const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ scrollHeight: 0 })
   const gridRef = useRef<HTMLDivElement | null>(null)
   const nowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -248,6 +253,31 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     }
   }, [])
 
+  useEffect(() => {
+    const updateGridMetrics = (): void => {
+      const grid = gridRef.current
+      if (!grid) return
+
+      setGridMetrics((prev) => {
+        const next = { scrollHeight: grid.scrollHeight }
+        if (prev.scrollHeight === next.scrollHeight) {
+          return prev
+        }
+        return next
+      })
+    }
+
+    const grid = gridRef.current
+    if (!grid) return
+
+    updateGridMetrics()
+    window.addEventListener('resize', updateGridMetrics)
+
+    return () => {
+      window.removeEventListener('resize', updateGridMetrics)
+    }
+  }, [entries, intervalMinutes, calendarStartTime, calendarEndTime])
+
   const handleEntryMouseEnter = (entry: TimeEntry): void => {
     const startMin = timeToMinutes(entry.startTime)
     const endMin = timeToMinutes(entry.endTime)
@@ -275,8 +305,10 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const currentTimeTopPercentRaw = currentTimeMode === 'before' ? 0 : currentTimeMode === 'after' ? 100 : ((currentMinutes - visibleStart) / visibleDuration) * 100
   const currentTimeTopPercent = Math.max(0, Math.min(100, currentTimeTopPercentRaw))
   const currentTimeLineTop = currentTimeMode === 'after' ? 'calc(100% - 2px)' : `${currentTimeTopPercent}%`
-  const currentTimeLabelTop = currentTimeMode === 'before' ? '4px' : currentTimeMode === 'after' ? 'calc(100% - 4px)' : `${currentTimeTopPercent}%`
+  const currentTimeLabelTop = currentTimeMode === 'before' ? 'calc(0% + 4px)' : 'calc(100% - 4px)'
   const currentTimeLabel = minutesToTime(currentMinutes)
+  const overlayHeight = gridMetrics.scrollHeight > 0 ? gridMetrics.scrollHeight : gridRef.current?.clientHeight ?? 0
+  const currentTimeLabelWithinTop = `${currentTimeTopPercent}%`
 
   return (
     <div className="calendar-view" style={style}>
@@ -411,13 +443,18 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
         })}
 
         <div className="calendar-current-time-overlay" aria-hidden="true">
-          <div className="calendar-current-time-line" style={{ top: currentTimeLineTop }} />
           <div
-            className={`calendar-current-time-label calendar-current-time-label-${currentTimeMode}`}
-            style={{ top: currentTimeLabelTop }}
-            title={`Current time ${currentTimeLabel}`}
+            className="calendar-current-time-overlay-content"
+            style={{ height: `${overlayHeight}px` }}
           >
-            {currentTimeLabel}
+            <div className="calendar-current-time-line" style={{ top: currentTimeLineTop }} />
+            <div
+              className={`calendar-current-time-label calendar-current-time-label-${currentTimeMode}`}
+              style={{ top: currentTimeMode === 'within' ? currentTimeLabelWithinTop : currentTimeLabelTop }}
+              title={`Current time ${currentTimeLabel}`}
+            >
+              {currentTimeLabel}
+            </div>
           </div>
         </div>
       </div>
