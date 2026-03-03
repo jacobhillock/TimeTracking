@@ -36,7 +36,7 @@ function adjustColorBrightness(hexColor: string, percent: number): string {
   return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('')
 }
 
-function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, isEntryUntracked, style }: CalendarViewProps) {
+function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, ticketOptions, isEntryUntracked, style }: CalendarViewProps) {
   const [dragStartRegion, setDragStartRegion] = useState<DragRegion | null>(null)
   const [dragCurrentRegion, setDragCurrentRegion] = useState<DragRegion | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -44,12 +44,14 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const [resizingEntry, setResizingEntry] = useState<EditableTimeEntry | null>(null)
   const [resizeEdge, setResizeEdge] = useState<ResizeEdge | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [quickTicketSelection, setQuickTicketSelection] = useState('')
   const [now, setNow] = useState<Date>(() => new Date())
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ scrollHeight: 0 })
   const gridRef = useRef<HTMLDivElement | null>(null)
   const nowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const businessWeekDates = getBusinessWeekDates()
+  const allTicketOptions = [...ticketOptions.pinned, ...ticketOptions.todos, ...ticketOptions.recent]
 
   const handleSave = async () => {
     if (!editingEntry) return
@@ -200,6 +202,10 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   }, [resizingEntry, resizeEdge])
 
   useEffect(() => {
+    setQuickTicketSelection('')
+  }, [editingEntry?.id])
+
+  useEffect(() => {
     const clearNowTimers = (): void => {
       if (nowTimeoutRef.current) {
         clearTimeout(nowTimeoutRef.current)
@@ -309,6 +315,21 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const currentTimeLabel = minutesToTime(currentMinutes)
   const overlayHeight = gridMetrics.scrollHeight > 0 ? gridMetrics.scrollHeight : gridRef.current?.clientHeight ?? 0
   const currentTimeLabelWithinTop = `${currentTimeTopPercent}%`
+
+  const handleQuickTicketSelect = (value: string): void => {
+    setQuickTicketSelection(value)
+    if (!editingEntry || !value) return
+
+    const selectedOption = allTicketOptions.find((option) => option.key === value)
+    if (!selectedOption) return
+
+    onEditEntry({
+      ...editingEntry,
+      client: selectedOption.client,
+      ticket: selectedOption.ticket
+    }, editingEntryDateKey)
+    setQuickTicketSelection('')
+  }
 
   return (
     <div className="calendar-view" style={style}>
@@ -485,23 +506,70 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
               <input type="time" value={editingEntry.endTime} onChange={(e) => onEditEntry({ ...editingEntry, endTime: e.target.value }, editingEntryDateKey)} tabIndex={2} />
             </div>
             <div className="modal-field">
-              <label>Client</label>
-              <select value={editingEntry.client} onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)} tabIndex={3}>
-                <option value="">Select Client</option>
-                {clients.map((client) => (
-                  <option key={client} value={client}>
-                    {client}
-                  </option>
-                ))}
-              </select>
+              <div className="modal-split-row">
+                <div className="modal-split-field">
+                  <label>Client</label>
+                  <select value={editingEntry.client} onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)} tabIndex={3}>
+                    <option value="">Select Client</option>
+                    {clients.map((client) => (
+                      <option key={client} value={client}>
+                        {client}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="modal-split-field">
+                  <label>Select ticket already logged to</label>
+                  <select
+                    value={quickTicketSelection}
+                    onChange={(e) => handleQuickTicketSelect(e.target.value)}
+                    tabIndex={4}
+                  >
+                    <option value="">Select ticket...</option>
+                    {ticketOptions.pinned.length > 0 && (
+                      <optgroup label="Pinned">
+                        {ticketOptions.pinned.map((option) => (
+                          <option key={`pinned-${option.key}`} value={option.key}>
+                            {option.friendlyName?.trim()
+                              ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                              : `${option.client}-${option.ticket}`}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {ticketOptions.todos.length > 0 && (
+                      <optgroup label="Todos">
+                        {ticketOptions.todos.map((option) => (
+                          <option key={`todo-${option.key}`} value={option.key}>
+                            {option.friendlyName?.trim()
+                              ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                              : `${option.client}-${option.ticket}`}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {ticketOptions.recent.length > 0 && (
+                      <optgroup label="Recent 7 days">
+                        {ticketOptions.recent.map((option) => (
+                          <option key={`recent-${option.key}`} value={option.key}>
+                            {option.friendlyName?.trim()
+                              ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                              : `${option.client}-${option.ticket}`}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              </div>
             </div>
             <div className="modal-field">
               <label>Ticket #</label>
-              <input type="text" value={editingEntry.ticket} onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)} tabIndex={4} />
+              <input type="text" value={editingEntry.ticket} onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)} tabIndex={5} />
             </div>
             <div className="modal-field">
               <label>Description</label>
-              <textarea value={editingEntry.description} onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)} rows={3} tabIndex={5} />
+              <textarea value={editingEntry.description} onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)} rows={3} tabIndex={6} />
             </div>
             <div className="modal-field modal-field-checkbox">
               <label>
@@ -513,22 +581,22 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
                     if (isEntryUntracked?.(editingEntry) && e.target.checked) return
                     onEditEntry({ ...editingEntry, disabled: e.target.checked }, editingEntryDateKey)
                   }}
-                  tabIndex={6}
+                  tabIndex={7}
                 />
                 Logged
               </label>
             </div>
             <div className="modal-buttons">
               {editingEntry.isNew ? (
-                <button className="btn-cancel" onClick={() => setShowCloseConfirm(true)} tabIndex={8}>
+                <button className="btn-cancel" onClick={() => setShowCloseConfirm(true)} tabIndex={9}>
                   Discard
                 </button>
               ) : (
-                <button className="btn-cancel" onClick={() => onEditEntry(null, null)} tabIndex={8}>
+                <button className="btn-cancel" onClick={() => onEditEntry(null, null)} tabIndex={9}>
                   Cancel
                 </button>
               )}
-              <button className="btn-save" onClick={() => void handleSave()} tabIndex={7}>
+              <button className="btn-save" onClick={() => void handleSave()} tabIndex={8}>
                 Save
               </button>
             </div>

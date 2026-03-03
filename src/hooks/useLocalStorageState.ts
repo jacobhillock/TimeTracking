@@ -13,7 +13,8 @@ export const STORAGE_KEYS = {
   CALENDAR_END_TIME: 'calendarEndTime',
   DARK_MODE: 'darkMode',
   SIDEBAR_VISIBLE: 'sidebarVisible',
-  COLLAPSED_SECTIONS: 'collapsedSections'
+  COLLAPSED_SECTIONS: 'collapsedSections',
+  PINNED_TICKETS: 'pinnedTickets'
 } as const
 
 type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
