@@ -1148,7 +1148,7 @@ function App() {
                       type="text"
                       placeholder="Ticket #"
                       value={newTodoTicket}
-                      onChange={(e) => setNewTodoTicket(e.target.value)}
+                      onValueChange={(value) => setNewTodoTicket(value)}
                       className="todo-form-field"
                       style={{ flex: 1 }}
                     />
@@ -1193,7 +1193,7 @@ function App() {
                                   type="text"
                                   placeholder="Ticket #"
                                   value={editTodoTicket}
-                                  onChange={(e) => setEditTodoTicket(e.target.value)}
+                                  onValueChange={(value) => setEditTodoTicket(value)}
                                   className="todo-form-field"
                                   style={{ flex: 1 }}
                                 />
