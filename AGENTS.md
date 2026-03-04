@@ -48,6 +48,7 @@ src/
 - **Date keys**: `dateKey` = `currentDate.toISOString().split('T')[0]` for lookups.
 - **Pinned tickets**: Persisted in localStorage via `STORAGE_KEYS.PINNED_TICKETS` (not IndexedDB) with friendly-name metadata.
 - **Todo retrieval behavior**: `getAllTodos(dateKey)` returns active todos plus todos completed on that `dateKey`.
+- **Base UI usage**: Use `@base-ui-components/react` for relevant shared primitives. Todo controls currently use Base UI `Checkbox` and `Input`; descriptions use native `textarea` with auto-resize.
 
 ## Development
 

@@ -1515,20 +1515,129 @@ body.dark-mode .btn-cancel-confirm:hover {
 /* Todo styles */
 .todo-item {
   display: flex !important;
-  align-items: flex-start !important;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 8px;
+  position: relative;
+  background: #3b3d40;
+  border: 1px solid #505257;
+  border-radius: 6px;
+  color: #f3f3f3;
+  padding: 10px;
 }
 
-.todo-item input[type="checkbox"] {
-  margin-top: 3px;
-  margin-bottom: 0;
-  flex-shrink: 0;
+body.dark-mode .todo-item {
+  background: #2f3135;
+  border-color: #474950;
+}
+
+.todo-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.todo-card-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-checkbox {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border: 2px solid #d8dbe2;
+  border-radius: 2px;
+  background: #2f3236;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
-.todo-completed {
-  opacity: 0.5;
+.todo-checkbox[data-checked] {
+  background: #1f88ff;
+  border-color: #1f88ff;
+}
+
+.todo-checkbox-indicator svg {
+  width: 12px;
+  height: 12px;
+}
+
+.todo-checkbox-indicator svg path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.todo-ticket {
+  margin-right: 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #57a7ff;
+  line-height: 1;
+}
+
+.todo-ticket .summary-link {
+  color: inherit;
+}
+
+.todo-item .todo-delete-button {
+  width: 24px;
+  height: 24px;
+  padding: 0 !important;
+  font-size: 0;
+  border: 1px solid #b30014;
+  border-radius: 5px;
+  background: #e10e20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.todo-item .todo-delete-button:hover {
+  background: #bf1020;
+}
+
+.todo-delete-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.todo-delete-button svg path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.todo-description-wrap {
+  cursor: pointer;
+}
+
+.todo-description-pre {
+  margin: 0;
+  font: inherit;
+  line-height: 1.35;
+  color: #ffffff;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.todo-description-complete {
   text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.todo-completed {
+  opacity: 1;
+  text-decoration: none;
 }
 
 .todo-form {
@@ -1536,6 +1645,7 @@ body.dark-mode .btn-cancel-confirm:hover {
 }
 
 .todo-form input,
+.todo-form textarea,
 .todo-form select {
   width: 100%;
   padding: 10px;
@@ -1547,13 +1657,14 @@ body.dark-mode .btn-cancel-confirm:hover {
 }
 
 body.dark-mode .todo-form input,
+body.dark-mode .todo-form textarea,
 body.dark-mode .todo-form select {
   background: #2a2a2a;
   border-color: #444;
   color: #e0e0e0;
 }
 
-.todo-item button {
+.todo-item button:not(.todo-delete-button) {
   padding: 4px 8px !important;
   font-size: 12px;
   flex-shrink: 0;
@@ -1574,6 +1685,17 @@ body.dark-mode .todo-form-field {
   background: #2a2a2a;
   border-color: #444;
   color: #e0e0e0;
+}
+
+.todo-textarea {
+  width: 100%;
+  min-height: 40px;
+  max-height: 240px;
+  resize: none;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .pinned-ticket-item {
