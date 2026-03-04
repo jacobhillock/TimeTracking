@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 import { migrateFromLocalStorage } from './services/db'
 import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
 import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
@@ -9,6 +10,8 @@ import SearchModal from './SearchModal'
 import CollapsibleSection from './components/CollapsibleSection'
 import Toaster from './components/Toaster'
 import { notifyErrorToast } from './services/toastService'
+import { Checkbox } from '@base-ui-components/react/checkbox'
+import { Input } from '@base-ui-components/react/input'
 
 const CalendarView = lazy(() => import('./components/CalendarView'))
 const TaskView = lazy(() => import('./components/TaskView'))
@@ -48,6 +51,25 @@ interface TicketRecentStats {
   client: string
   ticket: string
   lastLoggedDate?: string
+}
+
+interface TodoFormFieldsProps {
+  description: string
+  descriptionRef: RefObject<HTMLTextAreaElement | null>
+  onDescriptionChange: (value: string) => void
+  onDescriptionInput: (element: HTMLTextAreaElement) => void
+  clientValue: string
+  onClientChange: (value: string) => void
+  clients: string[]
+  ticketValue: string
+  onTicketChange: (value: string) => void
+  descriptionClassName?: string
+  descriptionStyle?: CSSProperties
+  rowStyle?: CSSProperties
+  clientSelectClassName?: string
+  clientSelectStyle?: CSSProperties
+  ticketInputClassName?: string
+  ticketInputStyle?: CSSProperties
 }
 
 function getContrastColor(hexColor: string): string {
@@ -112,6 +134,66 @@ const toTicketKey = (client: string, ticket: string): string =>
 const toTicketKeyLookup = (client: string, ticket: string): string =>
   toTicketKey(client, ticket).toLowerCase()
 
+const autoResizeTextarea = (element: HTMLTextAreaElement | null): void => {
+  if (!element) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}
+
+function TodoFormFields({
+  description,
+  descriptionRef,
+  onDescriptionChange,
+  onDescriptionInput,
+  clientValue,
+  onClientChange,
+  clients,
+  ticketValue,
+  onTicketChange,
+  descriptionClassName = 'todo-textarea',
+  descriptionStyle = { marginBottom: '8px' },
+  rowStyle = { display: 'flex', gap: '8px', marginBottom: '8px' },
+  clientSelectClassName = 'todo-form-field',
+  clientSelectStyle = { flex: 1 },
+  ticketInputClassName = 'todo-form-field',
+  ticketInputStyle = { flex: 1 }
+}: TodoFormFieldsProps) {
+  return (
+    <>
+      <textarea
+        placeholder="Todo description"
+        value={description}
+        ref={descriptionRef}
+        onChange={(e) => onDescriptionChange(e.target.value)}
+        onInput={(e) => onDescriptionInput(e.currentTarget)}
+        style={descriptionStyle}
+        className={descriptionClassName}
+      />
+      <div style={rowStyle}>
+        <select
+          value={clientValue}
+          onChange={(e) => onClientChange(e.target.value)}
+          className={clientSelectClassName}
+          style={clientSelectStyle}
+        >
+          <option value="">Optional client</option>
+          {clients.map(client => (
+            <option key={client} value={client}>{client}</option>
+          ))}
+        </select>
+        <Input
+          type="text"
+          placeholder="Ticket #"
+          value={ticketValue}
+          onValueChange={(value) => onTicketChange(value)}
+          className={ticketInputClassName}
+          style={ticketInputStyle}
+        />
+      </div>
+    </>
+  )
+}
+
 const getRecentDateKeys = (anchorDate: Date): string[] => {
   const keys: string[] = []
   for (let i = 0; i <= 7; i++) {
@@ -167,6 +249,8 @@ function App() {
   const [editTodoDescription, setEditTodoDescription] = useState('')
   const [editTodoClient, setEditTodoClient] = useState('')
   const [editTodoTicket, setEditTodoTicket] = useState('')
+  const newTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null)
+  const editTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null)
   const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({})
   const headerRef = useRef<HTMLDivElement | null>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
@@ -277,6 +361,14 @@ function App() {
     }
     loadTodos()
   }, [dateKey])
+
+  useEffect(() => {
+    autoResizeTextarea(newTodoDescriptionRef.current)
+  }, [newTodoDescription])
+
+  useEffect(() => {
+    autoResizeTextarea(editTodoDescriptionRef.current)
+  }, [editTodoDescription, editingTodoId])
 
   useEffect(() => {
     if (isLoadingEntries) return
@@ -1105,36 +1197,17 @@ function App() {
                 onToggle={() => toggleSection('todo')}
               >
                 <div className="todo-form" style={{ marginBottom: '15px' }}>
-                  <input
-                    type="text"
-                    placeholder="Todo description"
-                    value={newTodoDescription}
-                    onChange={(e) => setNewTodoDescription(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
-                    style={{ marginBottom: '8px' }}
+                  <TodoFormFields
+                    description={newTodoDescription}
+                    descriptionRef={newTodoDescriptionRef}
+                    onDescriptionChange={setNewTodoDescription}
+                    onDescriptionInput={autoResizeTextarea}
+                    clientValue={newTodoClient}
+                    onClientChange={setNewTodoClient}
+                    clients={clients}
+                    ticketValue={newTodoTicket}
+                    onTicketChange={setNewTodoTicket}
                   />
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <select
-                      value={newTodoClient}
-                      onChange={(e) => setNewTodoClient(e.target.value)}
-                      className="todo-form-field"
-                      style={{ flex: 1 }}
-                    >
-                      <option value="">Optional client</option>
-                      {clients.map(client => (
-                        <option key={client} value={client}>{client}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="Ticket #"
-                      value={newTodoTicket}
-                      onChange={(e) => setNewTodoTicket(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleAddTodo()}
-                      className="todo-form-field"
-                      style={{ flex: 1 }}
-                    />
-                  </div>
                   <button className="add-button" onClick={handleAddTodo}>
                     Add Todo
                   </button>
@@ -1146,45 +1219,22 @@ function App() {
                       <li
                         key={todo.id}
                         className={`client-item todo-item ${todo.completed ? 'todo-completed' : ''}`}
-                        style={{
-                          display: 'flex',
-                          flexFlow: 'column',
-                          gap: '8px',
-                          opacity: todo.completed ? 0.5 : 1,
-                          position: 'relative'
-                        }}
                       >
                         {editingTodoId === todo.id ? (
                           <>
                             <div>
-                              <input
-                                type="text"
-                                value={editTodoDescription}
-                                onChange={(e) => setEditTodoDescription(e.target.value)}
-                                style={{ width: '100%', marginBottom: '8px' }}
-                                placeholder="Todo description"
+                              <TodoFormFields
+                                description={editTodoDescription}
+                                descriptionRef={editTodoDescriptionRef}
+                                onDescriptionChange={setEditTodoDescription}
+                                onDescriptionInput={autoResizeTextarea}
+                                clientValue={editTodoClient}
+                                onClientChange={setEditTodoClient}
+                                clients={clients}
+                                ticketValue={editTodoTicket}
+                                onTicketChange={setEditTodoTicket}
+                                descriptionStyle={{ width: '100%', marginBottom: '8px' }}
                               />
-                              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                                <select
-                                  value={editTodoClient}
-                                  onChange={(e) => setEditTodoClient(e.target.value)}
-                                  className="todo-form-field"
-                                  style={{ flex: 1 }}
-                                >
-                                  <option value="">Optional client</option>
-                                  {clients.map(client => (
-                                    <option key={client} value={client}>{client}</option>
-                                  ))}
-                                </select>
-                                <input
-                                  type="text"
-                                  placeholder="Ticket #"
-                                  value={editTodoTicket}
-                                  onChange={(e) => setEditTodoTicket(e.target.value)}
-                                  className="todo-form-field"
-                                  style={{ flex: 1 }}
-                                />
-                              </div>
                             </div>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%' }}>
                               <button onClick={handleCancelEditTodo} style={{ padding: '4px 8px', fontSize: '12px', marginLeft: 'auto' }}>
@@ -1197,20 +1247,22 @@ function App() {
                           </>
                         ) : (
                           <>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                              <div style={{ display: 'flex', alignItems: 'center' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={todo.completed}
-                                  onChange={() => handleToggleTodo(todo.id)}
-                                  style={{
-                                    margin: '0',
-                                    flexShrink: 0
-                                  }}
-                                />
-                              </div>
+                            <div className="todo-card-top">
+                              <Checkbox.Root
+                                className="todo-checkbox"
+                                checked={todo.completed}
+                                onCheckedChange={() => handleToggleTodo(todo.id)}
+                                  aria-label={todo.completed ? 'Mark todo as incomplete' : 'Mark todo as complete'}
+                                >
+                                  <Checkbox.Indicator className="todo-checkbox-indicator">
+                                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                                      <path d="M3.5 8.2 6.6 11 12.5 4.8" />
+                                    </svg>
+                                  </Checkbox.Indicator>
+                                </Checkbox.Root>
+                              <div className="todo-card-spacer" />
                               {todo.client && (
-                                <div style={{ fontSize: '12px', marginLeft: '10px' }}>
+                                <div className="todo-ticket">
                                   {todo.ticket ? (
                                     getJiraUrl(todo.client, todo.ticket) ? (
                                       <a
@@ -1218,41 +1270,46 @@ function App() {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="summary-link"
-                                        style={{ fontSize: '12px' }}
+                                        style={{ fontSize: 'inherit' }}
                                       >
                                         {todo.client}-{todo.ticket}
                                       </a>
                                     ) : (
-                                      <span style={{ color: '#666' }}>{todo.client}-{todo.ticket}</span>
+                                      <span>{todo.client}-{todo.ticket}</span>
                                     )
                                   ) : (
-                                    <span style={{ color: '#666' }}>{todo.client}</span>
+                                    <span>{todo.client}</span>
                                   )}
                                 </div>
                               )}
+                              <button
+                                className="todo-delete-button"
+                                onClick={() => handleDeleteTodo(todo.id)}
+                                aria-label="Delete todo"
+                                title="Delete todo"
+                              >
+                                <svg viewBox="0 0 20 20" aria-hidden="true">
+                                  <path d="M4 4 L16 16 M16 4 L4 16" />
+                                </svg>
+                              </button>
                             </div>
                             <div
-                              style={{
-                                textDecoration: todo.completed ? 'line-through' : 'none',
-                                paddingRight: '10px',
-                                wordWrap: 'break-word',
-                                cursor: 'pointer'
-                              }}
+                              className="todo-description-wrap"
                               onClick={() => handleStartEditTodo(todo)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                                  e.preventDefault()
+                                  handleStartEditTodo(todo)
+                                }
+                              }}
+                              tabIndex={0}
+                              role="button"
+                              aria-label="Edit todo description"
                               title="Click to edit"
                             >
-                              {todo.description}
-                            </div>
-                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', gap: '8px' }}>
-                              <button
-                                onClick={() => handleDeleteTodo(todo.id)}
-                                style={{
-                                  padding: '4px 8px',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                Delete
-                              </button>
+                              <pre className={`todo-description-pre ${todo.completed ? 'todo-description-complete' : ''}`}>
+                                {todo.description}
+                              </pre>
                             </div>
                           </>
                         )}
