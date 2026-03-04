@@ -1259,6 +1259,15 @@ function App() {
                             <div
                               className="todo-description-wrap"
                               onClick={() => handleStartEditTodo(todo)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                                  e.preventDefault()
+                                  handleStartEditTodo(todo)
+                                }
+                              }}
+                              tabIndex={0}
+                              role="button"
+                              aria-label="Edit todo description"
                               title="Click to edit"
                             >
                               <pre className={`todo-description-pre ${todo.completed ? 'todo-description-complete' : ''}`}>
