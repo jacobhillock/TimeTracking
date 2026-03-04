@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 import { migrateFromLocalStorage } from './services/db'
 import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
 import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
@@ -50,6 +51,25 @@ interface TicketRecentStats {
   client: string
   ticket: string
   lastLoggedDate?: string
+}
+
+interface TodoFormFieldsProps {
+  description: string
+  descriptionRef: RefObject<HTMLTextAreaElement | null>
+  onDescriptionChange: (value: string) => void
+  onDescriptionInput: (element: HTMLTextAreaElement) => void
+  clientValue: string
+  onClientChange: (value: string) => void
+  clients: string[]
+  ticketValue: string
+  onTicketChange: (value: string) => void
+  descriptionClassName?: string
+  descriptionStyle?: CSSProperties
+  rowStyle?: CSSProperties
+  clientSelectClassName?: string
+  clientSelectStyle?: CSSProperties
+  ticketInputClassName?: string
+  ticketInputStyle?: CSSProperties
 }
 
 function getContrastColor(hexColor: string): string {
@@ -118,6 +138,60 @@ const autoResizeTextarea = (element: HTMLTextAreaElement | null): void => {
   if (!element) return
   element.style.height = 'auto'
   element.style.height = `${element.scrollHeight}px`
+}
+
+function TodoFormFields({
+  description,
+  descriptionRef,
+  onDescriptionChange,
+  onDescriptionInput,
+  clientValue,
+  onClientChange,
+  clients,
+  ticketValue,
+  onTicketChange,
+  descriptionClassName = 'todo-textarea',
+  descriptionStyle = { marginBottom: '8px' },
+  rowStyle = { display: 'flex', gap: '8px', marginBottom: '8px' },
+  clientSelectClassName = 'todo-form-field',
+  clientSelectStyle = { flex: 1 },
+  ticketInputClassName = 'todo-form-field',
+  ticketInputStyle = { flex: 1 }
+}: TodoFormFieldsProps) {
+  return (
+    <>
+      <textarea
+        placeholder="Todo description"
+        value={description}
+        ref={descriptionRef}
+        onChange={(e) => onDescriptionChange(e.target.value)}
+        onInput={(e) => onDescriptionInput(e.currentTarget)}
+        style={descriptionStyle}
+        className={descriptionClassName}
+      />
+      <div style={rowStyle}>
+        <select
+          value={clientValue}
+          onChange={(e) => onClientChange(e.target.value)}
+          className={clientSelectClassName}
+          style={clientSelectStyle}
+        >
+          <option value="">Optional client</option>
+          {clients.map(client => (
+            <option key={client} value={client}>{client}</option>
+          ))}
+        </select>
+        <Input
+          type="text"
+          placeholder="Ticket #"
+          value={ticketValue}
+          onValueChange={(value) => onTicketChange(value)}
+          className={ticketInputClassName}
+          style={ticketInputStyle}
+        />
+      </div>
+    </>
+  )
 }
 
 const getRecentDateKeys = (anchorDate: Date): string[] => {
@@ -1123,36 +1197,17 @@ function App() {
                 onToggle={() => toggleSection('todo')}
               >
                 <div className="todo-form" style={{ marginBottom: '15px' }}>
-                  <textarea
-                    placeholder="Todo description"
-                    value={newTodoDescription}
-                    ref={newTodoDescriptionRef}
-                    onChange={(e) => setNewTodoDescription(e.target.value)}
-                    onInput={(e) => autoResizeTextarea(e.currentTarget)}
-                    style={{ marginBottom: '8px' }}
-                    className="todo-textarea"
+                  <TodoFormFields
+                    description={newTodoDescription}
+                    descriptionRef={newTodoDescriptionRef}
+                    onDescriptionChange={setNewTodoDescription}
+                    onDescriptionInput={autoResizeTextarea}
+                    clientValue={newTodoClient}
+                    onClientChange={setNewTodoClient}
+                    clients={clients}
+                    ticketValue={newTodoTicket}
+                    onTicketChange={setNewTodoTicket}
                   />
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <select
-                      value={newTodoClient}
-                      onChange={(e) => setNewTodoClient(e.target.value)}
-                      className="todo-form-field"
-                      style={{ flex: 1 }}
-                    >
-                      <option value="">Optional client</option>
-                      {clients.map(client => (
-                        <option key={client} value={client}>{client}</option>
-                      ))}
-                    </select>
-                    <Input
-                      type="text"
-                      placeholder="Ticket #"
-                      value={newTodoTicket}
-                      onValueChange={(value) => setNewTodoTicket(value)}
-                      className="todo-form-field"
-                      style={{ flex: 1 }}
-                    />
-                  </div>
                   <button className="add-button" onClick={handleAddTodo}>
                     Add Todo
                   </button>
@@ -1168,36 +1223,18 @@ function App() {
                         {editingTodoId === todo.id ? (
                           <>
                             <div>
-                              <textarea
-                                value={editTodoDescription}
-                                ref={editTodoDescriptionRef}
-                                onChange={(e) => setEditTodoDescription(e.target.value)}
-                                onInput={(e) => autoResizeTextarea(e.currentTarget)}
-                                style={{ width: '100%', marginBottom: '8px' }}
-                                placeholder="Todo description"
-                                className="todo-textarea"
+                              <TodoFormFields
+                                description={editTodoDescription}
+                                descriptionRef={editTodoDescriptionRef}
+                                onDescriptionChange={setEditTodoDescription}
+                                onDescriptionInput={autoResizeTextarea}
+                                clientValue={editTodoClient}
+                                onClientChange={setEditTodoClient}
+                                clients={clients}
+                                ticketValue={editTodoTicket}
+                                onTicketChange={setEditTodoTicket}
+                                descriptionStyle={{ width: '100%', marginBottom: '8px' }}
                               />
-                              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                                <select
-                                  value={editTodoClient}
-                                  onChange={(e) => setEditTodoClient(e.target.value)}
-                                  className="todo-form-field"
-                                  style={{ flex: 1 }}
-                                >
-                                  <option value="">Optional client</option>
-                                  {clients.map(client => (
-                                    <option key={client} value={client}>{client}</option>
-                                  ))}
-                                </select>
-                                <Input
-                                  type="text"
-                                  placeholder="Ticket #"
-                                  value={editTodoTicket}
-                                  onValueChange={(value) => setEditTodoTicket(value)}
-                                  className="todo-form-field"
-                                  style={{ flex: 1 }}
-                                />
-                              </div>
                             </div>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%' }}>
                               <button onClick={handleCancelEditTodo} style={{ padding: '4px 8px', fontSize: '12px', marginLeft: 'auto' }}>
