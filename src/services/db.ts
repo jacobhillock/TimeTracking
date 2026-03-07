@@ -3,11 +3,18 @@ import type { DBSchema, IDBPDatabase, IDBPTransaction } from 'idb';
 import type { TimeEntry, Todo } from './types';
 
 const DB_NAME = 'timeTrackerDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 export const TIME_ENTRY_STORE_NAME = 'timeEntries';
 export const TODO_STORE_NAME = 'todos';
 export const TODO_INDEX_COMPLETED = 'by-completed';
 export const TODO_INDEX_COMPLETED_DATE = 'by-completed-date';
+export const TODO_COMPLETED_FALSE = 0;
+export const TODO_COMPLETED_TRUE = 1;
+
+export interface TodoRecord extends Todo {
+  completedIndex: typeof TODO_COMPLETED_FALSE | typeof TODO_COMPLETED_TRUE;
+  completedDateIndex?: string;
+}
 
 interface TimeTrackerDB extends DBSchema {
   [TIME_ENTRY_STORE_NAME]: {
@@ -16,15 +23,17 @@ interface TimeTrackerDB extends DBSchema {
   };
   [TODO_STORE_NAME]: {
     key: number;
-    value: Todo;
+    value: TodoRecord;
     indexes: {
-      [TODO_INDEX_COMPLETED]: boolean;
+      [TODO_INDEX_COMPLETED]: number;
       [TODO_INDEX_COMPLETED_DATE]: string;
     };
   };
 }
 
 type StoreName = keyof TimeTrackerDB;
+type AutoIncrementStoreName = typeof TODO_STORE_NAME;
+type KeyedStoreName = Exclude<StoreName, AutoIncrementStoreName>;
 type StoreValue<T extends StoreName> = TimeTrackerDB[T]['value'];
 type StoreKey<T extends StoreName> = TimeTrackerDB[T]['key'];
 type StoreIndexMap<T extends StoreName> = TimeTrackerDB[T] extends { indexes: infer Indexes } ? Indexes : never;
@@ -34,6 +43,35 @@ type TxMode = 'readonly' | 'readwrite';
 
 let dbInstance: IDBPDatabase<TimeTrackerDB> | null = null;
 
+export function toTodoRecord(todo: Todo): TodoRecord {
+  return {
+    ...todo,
+    completedIndex: todo.completed ? TODO_COMPLETED_TRUE : TODO_COMPLETED_FALSE,
+    completedDateIndex: todo.completed ? todo.completedDate : undefined,
+  };
+}
+
+export function fromTodoRecord(todo: TodoRecord): Todo {
+  const { completedIndex: _completedIndex, completedDateIndex: _completedDateIndex, ...publicTodo } = todo;
+  return publicTodo;
+}
+
+function ensureTodoIndex(
+  store: IDBPTransaction<TimeTrackerDB, StoreName[], 'versionchange'>['store'],
+  indexName: string,
+  keyPath: string
+): void {
+  if (store.indexNames.contains(indexName)) {
+    const existingKeyPath = store.index(indexName).keyPath;
+    if (existingKeyPath === keyPath) {
+      return;
+    }
+    store.deleteIndex(indexName);
+  }
+
+  store.createIndex(indexName, keyPath);
+}
+
 function ensureTodoIndexes(
   database: IDBPDatabase<TimeTrackerDB>,
   transaction: IDBPTransaction<TimeTrackerDB, StoreName[], 'versionchange'>
@@ -42,12 +80,19 @@ function ensureTodoIndexes(
     ? transaction.objectStore(TODO_STORE_NAME)
     : database.createObjectStore(TODO_STORE_NAME, { autoIncrement: true });
 
-  if (!todoStore.indexNames.contains(TODO_INDEX_COMPLETED)) {
-    todoStore.createIndex(TODO_INDEX_COMPLETED, 'completed');
-  }
+  ensureTodoIndex(todoStore, TODO_INDEX_COMPLETED, 'completedIndex');
+  ensureTodoIndex(todoStore, TODO_INDEX_COMPLETED_DATE, 'completedDateIndex');
+}
 
-  if (!todoStore.indexNames.contains(TODO_INDEX_COMPLETED_DATE)) {
-    todoStore.createIndex(TODO_INDEX_COMPLETED_DATE, 'completedDate');
+async function migrateTodoRecords(
+  transaction: IDBPTransaction<TimeTrackerDB, StoreName[], 'versionchange'>
+): Promise<void> {
+  const todoStore = transaction.objectStore(TODO_STORE_NAME);
+  const todos = await todoStore.getAll();
+
+  for (const todo of todos) {
+    const normalizedTodo = toTodoRecord(todo);
+    await todoStore.put(normalizedTodo, normalizedTodo.id);
   }
 }
 
@@ -58,7 +103,7 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
 
   try {
     dbInstance = await openDB<TimeTrackerDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion, _newVersion, transaction) {
+      async upgrade(db, oldVersion, _newVersion, transaction) {
         if (oldVersion < 2) {
           if (db.objectStoreNames.contains(TIME_ENTRY_STORE_NAME)) {
             db.deleteObjectStore(TIME_ENTRY_STORE_NAME);
@@ -70,6 +115,10 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
         }
         if (oldVersion < 4) {
           ensureTodoIndexes(db, transaction);
+        }
+        if (oldVersion < 5 && db.objectStoreNames.contains(TODO_STORE_NAME)) {
+          ensureTodoIndexes(db, transaction);
+          await migrateTodoRecords(transaction);
         }
       },
     });
@@ -146,18 +195,28 @@ export async function getAll<T extends StoreName>(storeName: T): Promise<StoreVa
   return await db.getAll(storeName) as StoreValue<T>[];
 }
 
-export async function addRecord<T extends StoreName>(
+export async function addRecord<T extends AutoIncrementStoreName>(
   storeName: T,
   value: StoreValue<T>,
   key?: StoreKey<T>
-): Promise<StoreKey<T>> {
+): Promise<StoreKey<T>>;
+export async function addRecord<T extends KeyedStoreName>(
+  storeName: T,
+  value: StoreValue<T>,
+  key: StoreKey<T>
+): Promise<StoreKey<T>>;
+export async function addRecord(
+  storeName: StoreName,
+  value: StoreValue<StoreName>,
+  key?: StoreKey<StoreName>
+): Promise<StoreKey<StoreName>> {
   const db = await getDB();
 
   if (key === undefined) {
-    return await db.add(storeName, value) as StoreKey<T>;
+    return await db.add(storeName, value) as StoreKey<StoreName>;
   }
 
-  return await db.add(storeName, value, key) as StoreKey<T>;
+  return await db.add(storeName, value, key) as StoreKey<StoreName>;
 }
 
 export async function putRecord<T extends StoreName>(

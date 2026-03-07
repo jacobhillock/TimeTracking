@@ -1,11 +1,14 @@
 import {
   addRecord,
+  fromTodoRecord,
   deleteRecord,
   getAllByIndex,
   getByKey,
   putRecord,
+  toTodoRecord,
   TODO_INDEX_COMPLETED,
   TODO_INDEX_COMPLETED_DATE,
+  TODO_COMPLETED_FALSE,
   TODO_STORE_NAME,
 } from './db';
 import type { Todo } from './types';
@@ -20,13 +23,14 @@ function formatLocalDate(date: Date): string {
 export async function getAllTodos(dateKey: string): Promise<Todo[]> {
   try {
     const [activeTodos, completedTodayTodos] = await Promise.all([
-      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED, false),
+      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED, TODO_COMPLETED_FALSE),
       getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED_DATE, dateKey),
     ]);
     const mergedTodos = new Map<number, Todo>();
 
     for (const todo of [...activeTodos, ...completedTodayTodos]) {
-      mergedTodos.set(todo.id, todo);
+      const publicTodo = fromTodoRecord(todo);
+      mergedTodos.set(publicTodo.id, publicTodo);
     }
 
     return Array.from(mergedTodos.values()).filter((todo) => {
@@ -56,7 +60,7 @@ export async function addTodo(
       createdDate: dateStr,
     };
 
-    await addRecord(TODO_STORE_NAME, todo, id);
+    await addRecord(TODO_STORE_NAME, toTodoRecord(todo), id);
     return todo;
   } catch (error) {
     console.error('Failed to add todo:', error);
@@ -66,13 +70,14 @@ export async function addTodo(
 
 export async function toggleTodoCompletion(id: number): Promise<boolean> {
   try {
-    const todo = await getByKey(TODO_STORE_NAME, id);
+    const storedTodo = await getByKey(TODO_STORE_NAME, id);
 
-    if (!todo) {
+    if (!storedTodo) {
       console.error('Todo not found:', id);
       return false;
     }
 
+    const todo = fromTodoRecord(storedTodo);
     const updatedTodo: Todo = {
       ...todo,
       completed: !todo.completed,
@@ -81,7 +86,7 @@ export async function toggleTodoCompletion(id: number): Promise<boolean> {
         : undefined,
     };
 
-    await putRecord(TODO_STORE_NAME, updatedTodo, id);
+    await putRecord(TODO_STORE_NAME, toTodoRecord(updatedTodo), id);
     return true;
   } catch (error) {
     console.error('Failed to toggle todo completion:', error);
@@ -101,13 +106,14 @@ export async function deleteTodo(id: number): Promise<boolean> {
 
 export async function updateTodo(id: number, description: string, client?: string, ticket?: string): Promise<boolean> {
   try {
-    const todo = await getByKey(TODO_STORE_NAME, id);
+    const storedTodo = await getByKey(TODO_STORE_NAME, id);
 
-    if (!todo) {
+    if (!storedTodo) {
       console.error('Todo not found:', id);
       return false;
     }
 
+    const todo = fromTodoRecord(storedTodo);
     const updatedTodo: Todo = {
       ...todo,
       description,
@@ -115,7 +121,7 @@ export async function updateTodo(id: number, description: string, client?: strin
       ticket,
     };
 
-    await putRecord(TODO_STORE_NAME, updatedTodo, id);
+    await putRecord(TODO_STORE_NAME, toTodoRecord(updatedTodo), id);
     return true;
   } catch (error) {
     console.error('Failed to update todo:', error);
