@@ -218,7 +218,7 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     }
 
     const syncNow = (): void => setNow(new Date())
-    const isActive = (): boolean => document.visibilityState === 'visible' && (typeof document.hasFocus !== 'function' || document.hasFocus())
+    const isActive = (): boolean => document.visibilityState === 'visible'
 
     const scheduleNowUpdates = (): void => {
       clearNowTimers()
@@ -247,14 +247,10 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
     }
 
     scheduleNowUpdates()
-    window.addEventListener('focus', handleActivityChange)
-    window.addEventListener('blur', handleActivityChange)
     document.addEventListener('visibilitychange', handleActivityChange)
 
     return () => {
       clearNowTimers()
-      window.removeEventListener('focus', handleActivityChange)
-      window.removeEventListener('blur', handleActivityChange)
       document.removeEventListener('visibilitychange', handleActivityChange)
     }
   }, [])
