@@ -1,23 +1,37 @@
-import { getDB, TODO_STORE_NAME } from './db';
+import {
+  addRecord,
+  deleteRecord,
+  getAllByIndex,
+  getByKey,
+  putRecord,
+  TODO_INDEX_COMPLETED,
+  TODO_INDEX_COMPLETED_DATE,
+  TODO_STORE_NAME,
+} from './db';
 import type { Todo } from './types';
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export async function getAllTodos(dateKey: string): Promise<Todo[]> {
   try {
-    const db = await getDB();
-    const keys = await db.getAllKeys(TODO_STORE_NAME);
-    const tx = db.transaction(TODO_STORE_NAME, 'readonly');
-    const todos: Todo[] = [];
-    
-    for (const key of keys) {
-      const todo = await tx.store.get(key);
-      if (todo && (!todo.completed || (todo.completed && todo.completedDate === dateKey))) {
-        todos.push({ ...todo, id: key as number });
-      }
+    const [activeTodos, completedTodayTodos] = await Promise.all([
+      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED, false),
+      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED_DATE, dateKey),
+    ]);
+    const mergedTodos = new Map<number, Todo>();
+
+    for (const todo of [...activeTodos, ...completedTodayTodos]) {
+      mergedTodos.set(todo.id, todo);
     }
 
-    await tx.done;
-    
-    return todos;
+    return Array.from(mergedTodos.values()).filter((todo) => {
+      return !todo.completed || todo.completedDate === dateKey;
+    });
   } catch (error) {
     console.error('Failed to get all todos:', error);
     return [];
@@ -31,9 +45,8 @@ export async function addTodo(
   createdDate?: string
 ): Promise<Todo | null> {
   try {
-    const db = await getDB();
     const id = Date.now();
-    const dateStr = (createdDate || new Date().toISOString().split('T')[0]) as string;
+    const dateStr = createdDate || formatLocalDate(new Date());
     const todo: Todo = {
       id,
       description,
@@ -42,8 +55,8 @@ export async function addTodo(
       completed: false,
       createdDate: dateStr,
     };
-    
-    await db.put(TODO_STORE_NAME, todo, id);
+
+    await addRecord(TODO_STORE_NAME, todo, id);
     return todo;
   } catch (error) {
     console.error('Failed to add todo:', error);
@@ -53,9 +66,8 @@ export async function addTodo(
 
 export async function toggleTodoCompletion(id: number): Promise<boolean> {
   try {
-    const db = await getDB();
-    const todo = await db.get(TODO_STORE_NAME, id);
-    
+    const todo = await getByKey(TODO_STORE_NAME, id);
+
     if (!todo) {
       console.error('Todo not found:', id);
       return false;
@@ -65,11 +77,11 @@ export async function toggleTodoCompletion(id: number): Promise<boolean> {
       ...todo,
       completed: !todo.completed,
       completedDate: !todo.completed
-        ? new Date().toISOString().split('T')[0]
+        ? formatLocalDate(new Date())
         : undefined,
     };
 
-    await db.put(TODO_STORE_NAME, updatedTodo, id);
+    await putRecord(TODO_STORE_NAME, updatedTodo, id);
     return true;
   } catch (error) {
     console.error('Failed to toggle todo completion:', error);
@@ -79,8 +91,7 @@ export async function toggleTodoCompletion(id: number): Promise<boolean> {
 
 export async function deleteTodo(id: number): Promise<boolean> {
   try {
-    const db = await getDB();
-    await db.delete(TODO_STORE_NAME, id);
+    await deleteRecord(TODO_STORE_NAME, id);
     return true;
   } catch (error) {
     console.error('Failed to delete todo:', error);
@@ -90,9 +101,8 @@ export async function deleteTodo(id: number): Promise<boolean> {
 
 export async function updateTodo(id: number, description: string, client?: string, ticket?: string): Promise<boolean> {
   try {
-    const db = await getDB();
-    const todo = await db.get(TODO_STORE_NAME, id);
-    
+    const todo = await getByKey(TODO_STORE_NAME, id);
+
     if (!todo) {
       console.error('Todo not found:', id);
       return false;
@@ -105,7 +115,7 @@ export async function updateTodo(id: number, description: string, client?: strin
       ticket,
     };
 
-    await db.put(TODO_STORE_NAME, updatedTodo, id);
+    await putRecord(TODO_STORE_NAME, updatedTodo, id);
     return true;
   } catch (error) {
     console.error('Failed to update todo:', error);
