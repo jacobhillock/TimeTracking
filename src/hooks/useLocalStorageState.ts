@@ -11,6 +11,10 @@ export const STORAGE_KEYS = {
   CALENDAR_INTERVAL: 'calendarInterval',
   CALENDAR_START_TIME: 'calendarStartTime',
   CALENDAR_END_TIME: 'calendarEndTime',
+  OPEN_REMINDER_TIME: 'openReminderTime',
+  CLOSE_REMINDER_TIME: 'closeReminderTime',
+  LAST_OPEN_REMINDER_DATE: 'lastOpenReminderDate',
+  LAST_CLOSE_REMINDER_DATE: 'lastCloseReminderDate',
   DARK_MODE: 'darkMode',
   SIDEBAR_VISIBLE: 'sidebarVisible',
   COLLAPSED_SECTIONS: 'collapsedSections',
@@ -24,13 +28,17 @@ interface LocalStorageStateOptions<T> {
   serialize?: (value: T) => string
 }
 
-const LOCAL_STORAGE_MIGRATION_KEY = 'useLocalStorageState:migrated:v1'
+const LOCAL_STORAGE_MIGRATION_KEY = 'useLocalStorageState:migrated:v2'
 const LEGACY_PLAIN_STRING_KEYS: StorageKey[] = [
   STORAGE_KEYS.CURRENT_VIEW,
   STORAGE_KEYS.JIRA_BASE_URL,
   STORAGE_KEYS.DEFAULT_START_TIME,
   STORAGE_KEYS.CALENDAR_START_TIME,
-  STORAGE_KEYS.CALENDAR_END_TIME
+  STORAGE_KEYS.CALENDAR_END_TIME,
+  STORAGE_KEYS.OPEN_REMINDER_TIME,
+  STORAGE_KEYS.CLOSE_REMINDER_TIME,
+  STORAGE_KEYS.LAST_OPEN_REMINDER_DATE,
+  STORAGE_KEYS.LAST_CLOSE_REMINDER_DATE
 ]
 
 let hasRunLocalStorageMigration = false
