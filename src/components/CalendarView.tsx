@@ -36,7 +36,7 @@ function adjustColorBrightness(hexColor: string, percent: number): string {
   return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('')
 }
 
-function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, ticketOptions, isEntryUntracked, style }: CalendarViewProps) {
+function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, ticketOptions, isEntryUntracked, style }: CalendarViewProps) {
   const [dragStartRegion, setDragStartRegion] = useState<DragRegion | null>(null)
   const [dragCurrentRegion, setDragCurrentRegion] = useState<DragRegion | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -45,11 +45,8 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   const [resizeEdge, setResizeEdge] = useState<ResizeEdge | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [quickTicketSelection, setQuickTicketSelection] = useState('')
-  const [now, setNow] = useState<Date>(() => new Date())
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ scrollHeight: 0 })
   const gridRef = useRef<HTMLDivElement | null>(null)
-  const nowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const nowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const businessWeekDates = getBusinessWeekDates()
   const allTicketOptions = [...ticketOptions.pinned, ...ticketOptions.todos, ...ticketOptions.recent]
 
@@ -204,60 +201,6 @@ function CalendarView({ entries, currentDate, onAddEntry, onUpdateEntry, onDelet
   useEffect(() => {
     setQuickTicketSelection('')
   }, [editingEntry?.id])
-
-  useEffect(() => {
-    const clearNowTimers = (): void => {
-      if (nowTimeoutRef.current) {
-        clearTimeout(nowTimeoutRef.current)
-        nowTimeoutRef.current = null
-      }
-      if (nowIntervalRef.current) {
-        clearInterval(nowIntervalRef.current)
-        nowIntervalRef.current = null
-      }
-    }
-
-    const syncNow = (): void => setNow(new Date())
-    const isActive = (): boolean => document.visibilityState === 'visible' && (typeof document.hasFocus !== 'function' || document.hasFocus())
-
-    const scheduleNowUpdates = (): void => {
-      clearNowTimers()
-
-      if (!isActive()) {
-        return
-      }
-
-      syncNow()
-      const timestamp = new Date()
-      const delayToNextMinute = Math.max(0, (60 - timestamp.getSeconds()) * 1000 - timestamp.getMilliseconds())
-
-      nowTimeoutRef.current = setTimeout(() => {
-        syncNow()
-        nowIntervalRef.current = setInterval(syncNow, 60_000)
-      }, delayToNextMinute)
-    }
-
-    const handleActivityChange = (): void => {
-      if (isActive()) {
-        scheduleNowUpdates()
-        return
-      }
-
-      clearNowTimers()
-    }
-
-    scheduleNowUpdates()
-    window.addEventListener('focus', handleActivityChange)
-    window.addEventListener('blur', handleActivityChange)
-    document.addEventListener('visibilitychange', handleActivityChange)
-
-    return () => {
-      clearNowTimers()
-      window.removeEventListener('focus', handleActivityChange)
-      window.removeEventListener('blur', handleActivityChange)
-      document.removeEventListener('visibilitychange', handleActivityChange)
-    }
-  }, [])
 
   useEffect(() => {
     const updateGridMetrics = (): void => {

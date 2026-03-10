@@ -1,12 +1,16 @@
-import { getDB } from './db';
-import type { TimeEntry, DayEntries } from './types';
-
-const STORE_NAME = 'timeEntries';
+import {
+  deleteRecord,
+  getByKey,
+  getManyByKeys,
+  getTx,
+  putRecord,
+  TIME_ENTRY_STORE_NAME,
+} from './db';
+import type { TimeEntry } from './types';
 
 export async function getEntriesForDay(date: string): Promise<TimeEntry[]> {
   try {
-    const db = await getDB();
-    const entries = await db.get(STORE_NAME, date);
+    const entries = await getByKey(TIME_ENTRY_STORE_NAME, date);
     return entries || [];
   } catch (error) {
     console.error(`Failed to get entries for ${date}:`, error);
@@ -16,16 +20,16 @@ export async function getEntriesForDay(date: string): Promise<TimeEntry[]> {
 
 export async function getEntriesForDays(dates: string[]): Promise<Record<string, TimeEntry[]>> {
   try {
-    const db = await getDB();
     const result: Record<string, TimeEntry[]> = {};
-    
-    for (const date of dates) {
-      const entries = await db.get(STORE_NAME, date);
+    const entriesByDate = await getManyByKeys(TIME_ENTRY_STORE_NAME, dates);
+
+    dates.forEach((date, index) => {
+      const entries = entriesByDate[index];
       if (entries && entries.length > 0) {
         result[date] = entries;
       }
-    }
-    
+    });
+
     return result;
   } catch (error) {
     console.error('Failed to get entries for days:', error);
@@ -35,17 +39,19 @@ export async function getEntriesForDays(dates: string[]): Promise<Record<string,
 
 export async function getAllEntries(): Promise<Record<string, TimeEntry[]>> {
   try {
-    const db = await getDB();
-    const allKeys = await db.getAllKeys(STORE_NAME);
+    const [tx, close] = await getTx([TIME_ENTRY_STORE_NAME], 'readonly');
+    const allKeys = await tx.store.getAllKeys();
+    const allEntries = await tx.store.getAll();
     const result: Record<string, TimeEntry[]> = {};
-    
-    for (const key of allKeys) {
-      const entries = await db.get(STORE_NAME, key);
+
+    allKeys.forEach((key, index) => {
+      const entries = allEntries[index];
       if (entries) {
         result[key as string] = entries;
       }
-    }
-    
+    });
+
+    await close();
     return result;
   } catch (error) {
     console.error('Failed to get all entries:', error);
@@ -55,8 +61,7 @@ export async function getAllEntries(): Promise<Record<string, TimeEntry[]>> {
 
 export async function setEntriesForDay(date: string, entries: TimeEntry[]): Promise<void> {
   try {
-    const db = await getDB();
-    await db.put(STORE_NAME, entries, date);
+    await putRecord(TIME_ENTRY_STORE_NAME, entries, date);
     console.log(`Saved ${entries.length} entries for ${date}`);
   } catch (error) {
     console.error(`Failed to save entries for ${date}:`, error);
@@ -107,8 +112,7 @@ export async function deleteEntry(date: string, entryId: number): Promise<void> 
 
 export async function deleteDay(date: string): Promise<void> {
   try {
-    const db = await getDB();
-    await db.delete(STORE_NAME, date);
+    await deleteRecord(TIME_ENTRY_STORE_NAME, date);
     console.log(`Deleted all entries for ${date}`);
   } catch (error) {
     console.error(`Failed to delete entries for ${date}:`, error);

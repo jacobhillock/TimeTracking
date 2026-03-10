@@ -97,6 +97,48 @@ const formatLocalDate = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+const parseTimeValue = (value: string): { hours: number; minutes: number } | null => {
+  const [hoursRaw, minutesRaw] = value.split(':')
+  const hours = Number(hoursRaw)
+  const minutes = Number(minutesRaw)
+
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+    return null
+  }
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null
+  }
+
+  return { hours, minutes }
+}
+
+const buildDateWithTime = (baseDate: Date, timeValue: string): Date | null => {
+  const parsed = parseTimeValue(timeValue)
+  if (!parsed) return null
+
+  return new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate(),
+    parsed.hours,
+    parsed.minutes,
+    0,
+    0
+  )
+}
+
+const isReminderDue = (timeValue: string | null, lastShownDate: string | null, now: Date): boolean => {
+  if (!timeValue) return false
+
+  const todayKey = formatLocalDate(now)
+  if (lastShownDate === todayKey) return false
+
+  const scheduled = buildDateWithTime(now, timeValue)
+  if (!scheduled) return false
+
+  return now >= scheduled
+}
+
 const toLocalNoon = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)
 }
@@ -230,6 +272,10 @@ function App() {
   })
   const [calendarStartTime, setCalendarStartTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_START_TIME, '00:00')
   const [calendarEndTime, setCalendarEndTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_END_TIME, '23:59')
+  const [openReminderTime, setOpenReminderTime] = useLocalStorageState<string | null>(STORAGE_KEYS.OPEN_REMINDER_TIME, null)
+  const [closeReminderTime, setCloseReminderTime] = useLocalStorageState<string | null>(STORAGE_KEYS.CLOSE_REMINDER_TIME, null)
+  const [lastOpenReminderDate, setLastOpenReminderDate] = useLocalStorageState<string | null>(STORAGE_KEYS.LAST_OPEN_REMINDER_DATE, null)
+  const [lastCloseReminderDate, setLastCloseReminderDate] = useLocalStorageState<string | null>(STORAGE_KEYS.LAST_CLOSE_REMINDER_DATE, null)
   const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null)
   const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null)
   const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null)
@@ -239,6 +285,8 @@ function App() {
   const [pinnedTickets, setPinnedTickets] = useLocalStorageState<PinnedTicket[]>(STORAGE_KEYS.PINNED_TICKETS, [])
   const [newClient, setNewClient] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [now, setNow] = useState<Date>(() => new Date())
+  const [activeReminder, setActiveReminder] = useState<'open' | 'close' | null>(null)
   const [clickedSummary, setClickedSummary] = useState<SummaryItem | null>(null)
   const [showLogPrompt, setShowLogPrompt] = useState(false)
   const [todos, setTodos] = useState<Todo[]>([])
@@ -254,9 +302,22 @@ function App() {
   const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({})
   const headerRef = useRef<HTMLDivElement | null>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
+  const nowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const openReminderTimeRef = useRef<string | null>(openReminderTime)
+  const closeReminderTimeRef = useRef<string | null>(closeReminderTime)
+  const lastOpenReminderDateRef = useRef<string | null>(lastOpenReminderDate)
+  const lastCloseReminderDateRef = useRef<string | null>(lastCloseReminderDate)
+  const activeReminderRef = useRef<'open' | 'close' | null>(null)
   const windowWasBlurred = useRef<boolean>(false)
   const friendlyNameTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const loadedRecentDateKeysRef = useRef<Set<string>>(new Set())
+
+  openReminderTimeRef.current = openReminderTime
+  closeReminderTimeRef.current = closeReminderTime
+  lastOpenReminderDateRef.current = lastOpenReminderDate
+  lastCloseReminderDateRef.current = lastCloseReminderDate
+  activeReminderRef.current = activeReminder
 
   const dateKey = formatLocalDate(currentDate)
 
@@ -353,6 +414,60 @@ function App() {
   useEffect(() => {
     document.body.classList.toggle('dark-mode', darkMode)
   }, [darkMode])
+
+  useEffect(() => {
+    const clearNowTimers = (): void => {
+      if (nowTimeoutRef.current) {
+        clearTimeout(nowTimeoutRef.current)
+        nowTimeoutRef.current = null
+      }
+      if (nowIntervalRef.current) {
+        clearInterval(nowIntervalRef.current)
+        nowIntervalRef.current = null
+      }
+    }
+
+    const syncNow = (): void => {
+      const nextNow = new Date()
+      setNow(nextNow)
+      evaluateRemindersNow(nextNow)
+    }
+    const isActive = (): boolean => document.visibilityState === 'visible'
+
+    const scheduleNowUpdates = (): void => {
+      clearNowTimers()
+
+      if (!isActive()) {
+        return
+      }
+
+      syncNow()
+      const timestamp = new Date()
+      const delayToNextMinute = Math.max(0, (60 - timestamp.getSeconds()) * 1000 - timestamp.getMilliseconds())
+
+      nowTimeoutRef.current = setTimeout(() => {
+        syncNow()
+        nowIntervalRef.current = setInterval(syncNow, 60_000)
+      }, delayToNextMinute)
+    }
+
+    const handleActivityChange = (): void => {
+      if (isActive()) {
+        scheduleNowUpdates()
+        return
+      }
+
+      clearNowTimers()
+    }
+
+    scheduleNowUpdates()
+    document.addEventListener('visibilitychange', handleActivityChange)
+
+    return () => {
+      clearNowTimers()
+      document.removeEventListener('visibilitychange', handleActivityChange)
+    }
+  }, [])
 
   useEffect(() => {
     const loadTodos = async () => {
@@ -927,6 +1042,34 @@ function App() {
     }))
   }
 
+  const evaluateRemindersNow = (referenceNow: Date): void => {
+    if (activeReminderRef.current) return
+
+    const openDue = isReminderDue(openReminderTimeRef.current, lastOpenReminderDateRef.current, referenceNow)
+    const closeDue = isReminderDue(closeReminderTimeRef.current, lastCloseReminderDateRef.current, referenceNow)
+    const todayKey = formatLocalDate(referenceNow)
+
+    if (openDue) {
+      lastOpenReminderDateRef.current = todayKey
+      setLastOpenReminderDate(todayKey)
+      activeReminderRef.current = 'open'
+      setActiveReminder('open')
+      return
+    }
+
+    if (closeDue) {
+      lastCloseReminderDateRef.current = todayKey
+      setLastCloseReminderDate(todayKey)
+      activeReminderRef.current = 'close'
+      setActiveReminder('close')
+    }
+  }
+
+  const handleDismissReminder = () => {
+    activeReminderRef.current = null
+    setActiveReminder(null)
+  }
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'q') {
@@ -972,6 +1115,17 @@ function App() {
           }
         }}
       />
+      {activeReminder && (
+        <div className="reminder-modal-overlay" onClick={handleDismissReminder}>
+          <div className="reminder-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Reminder</h3>
+            <p>Reminder: send {activeReminder} email</p>
+            <div className="confirmation-buttons">
+              <button className="btn-confirm" onClick={handleDismissReminder}>Dismiss</button>
+            </div>
+          </div>
+        </div>
+      )}
         <div className="main-content">
           <button
             className="sidebar-toggle-button"
@@ -1042,6 +1196,7 @@ function App() {
               <CalendarView
                 style={{ height: `calc(100% - ${headerHeight}px)` }}
                 entries={entries}
+                now={now}
                 currentDate={currentDate}
                 onAddEntry={addCalendarEntry}
                 onUpdateEntry={updateCalendarEntry}
@@ -1421,6 +1576,46 @@ function App() {
                   />
                   <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
                     New entries will start at {defaultStartTime} (if no previous entries)
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Open Reminder Time</h3>
+                  <Input
+                    type="time"
+                    value={openReminderTime ?? ''}
+                    onChange={(e) => {
+                      const nextValue = e.target.value || null
+                      if (nextValue === openReminderTime) return
+                      openReminderTimeRef.current = nextValue
+                      lastOpenReminderDateRef.current = null
+                      setOpenReminderTime(nextValue)
+                      setLastOpenReminderDate(null)
+                      evaluateRemindersNow(new Date())
+                    }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                    Shows a daily reminder to send your open email.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Close Reminder Time</h3>
+                  <input
+                    type="time"
+                    value={closeReminderTime ?? ''}
+                    onChange={(e) => {
+                      const nextValue = e.target.value || null
+                      if (nextValue === closeReminderTime) return
+                      closeReminderTimeRef.current = nextValue
+                      lastCloseReminderDateRef.current = null
+                      setCloseReminderTime(nextValue)
+                      setLastCloseReminderDate(null)
+                      evaluateRemindersNow(new Date())
+                    }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                    Shows a daily reminder to send your close email.
                   </div>
                 </div>
 
