@@ -46,6 +46,7 @@ src/
 - **State**: React `useState`; use `useLocalStorageState` (`src/hooks/useLocalStorageState.ts`) for localStorage-backed UI settings instead of per-state sync `useEffect`s.
 - **Data flow**: Services read/write IndexedDB; App coordinates UI and calls services.
 - **IndexedDB helpers**: Reusable low-level DB helpers live in `src/services/db.ts`; feature services should use those instead of ad hoc `db.get`/`db.put` calls when adding new storage logic.
+- **Hooks**: Minimize hooks when possible.
 - **Date keys**: `dateKey` = `currentDate.toISOString().split('T')[0]` for lookups.
 - **Pinned tickets**: Persisted in localStorage via `STORAGE_KEYS.PINNED_TICKETS` (not IndexedDB) with friendly-name metadata.
 - **Todo retrieval behavior**: `getAllTodos(dateKey)` returns active todos plus todos completed on that `dateKey`.
