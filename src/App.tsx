@@ -1047,32 +1047,25 @@ function App() {
 
     const openDue = isReminderDue(openReminderTimeRef.current, lastOpenReminderDateRef.current, referenceNow)
     const closeDue = isReminderDue(closeReminderTimeRef.current, lastCloseReminderDateRef.current, referenceNow)
+    const todayKey = formatLocalDate(referenceNow)
 
     if (openDue) {
+      lastOpenReminderDateRef.current = todayKey
+      setLastOpenReminderDate(todayKey)
       activeReminderRef.current = 'open'
       setActiveReminder('open')
       return
     }
 
     if (closeDue) {
+      lastCloseReminderDateRef.current = todayKey
+      setLastCloseReminderDate(todayKey)
       activeReminderRef.current = 'close'
       setActiveReminder('close')
     }
   }
 
   const handleDismissReminder = () => {
-    const todayKey = formatLocalDate(new Date())
-
-    if (activeReminderRef.current === 'open') {
-      lastOpenReminderDateRef.current = todayKey
-      setLastOpenReminderDate(todayKey)
-    }
-
-    if (activeReminderRef.current === 'close') {
-      lastCloseReminderDateRef.current = todayKey
-      setLastCloseReminderDate(todayKey)
-    }
-
     activeReminderRef.current = null
     setActiveReminder(null)
   }
@@ -1588,7 +1581,7 @@ function App() {
 
                 <div style={{ marginBottom: '20px' }}>
                   <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Open Reminder Time</h3>
-                  <input
+                  <Input
                     type="time"
                     value={openReminderTime ?? ''}
                     onChange={(e) => {

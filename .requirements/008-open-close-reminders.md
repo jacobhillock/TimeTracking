@@ -62,7 +62,7 @@ If open and close reminder times are the same (or overlap), should the app show 
 
 If a reminder time is changed to a time that is already in the past for today (e.g., set to 08:30 at 09:00), should it trigger immediately?
 
-**if it is 8:45 no, if it is after 9:00 then yes**
+**if the time has changed, treat it like it was never opened that day. It should trigger if the time is now or has passed**
 
 ### 8. Clarify past-time change behavior
 

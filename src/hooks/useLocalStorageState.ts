@@ -28,7 +28,7 @@ interface LocalStorageStateOptions<T> {
   serialize?: (value: T) => string
 }
 
-const LOCAL_STORAGE_MIGRATION_KEY = 'useLocalStorageState:migrated:v1'
+const LOCAL_STORAGE_MIGRATION_KEY = 'useLocalStorageState:migrated:v2'
 const LEGACY_PLAIN_STRING_KEYS: StorageKey[] = [
   STORAGE_KEYS.CURRENT_VIEW,
   STORAGE_KEYS.JIRA_BASE_URL,
