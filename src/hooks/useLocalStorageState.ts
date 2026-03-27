@@ -18,7 +18,8 @@ export const STORAGE_KEYS = {
   DARK_MODE: 'darkMode',
   SIDEBAR_VISIBLE: 'sidebarVisible',
   COLLAPSED_SECTIONS: 'collapsedSections',
-  PINNED_TICKETS: 'pinnedTickets'
+  PINNED_TICKETS: 'pinnedTickets',
+  TAG_TYPES: 'tagTypes'
 } as const
 
 type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]

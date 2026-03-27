@@ -48,6 +48,7 @@ export interface CalendarViewProps {
   editingEntry: EditableTimeEntry | null
   editingEntryDateKey: string | null
   ticketOptions: TicketOptionGroups
+  tagTypes: string[]
   isEntryUntracked?: (entry: TimeEntry) => boolean
   style?: CSSProperties
 }

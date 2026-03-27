@@ -255,6 +255,39 @@ const sortTicketOptions = (a: TicketOption, b: TicketOption): number => {
   return a.key.localeCompare(b.key)
 }
 
+const DEFAULT_TAG_TYPES = ['Admin', 'Research', 'Development', 'Design']
+
+const normalizeTagPart = (value: string): string => value.trim()
+
+const normalizeTagList = (values: string[]): string[] => {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  values.forEach((value) => {
+    const tag = normalizeTagPart(value)
+    if (!tag) return
+
+    const lookup = tag.toLowerCase()
+    if (seen.has(lookup)) return
+
+    seen.add(lookup);
+    normalized.push(tag);
+  })
+
+  return normalized;
+}
+
+const parseTagTypes = (rawValue: string): string[] => {
+  return normalizeTagList(JSON.parse(rawValue) as string[])
+}
+
+const normalizeEntryTags = <T extends TimeEntry>(entry: T): T => {
+  return {
+    ...entry,
+    tags: normalizeTagList(entry.tags || [])
+  }
+}
+
 function App() {
   const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()))
   const [currentView, setCurrentView] = useLocalStorageState<ViewMode>(STORAGE_KEYS.CURRENT_VIEW, 'calendar', {
@@ -283,7 +316,13 @@ function App() {
   const [sidebarVisible, setSidebarVisible] = useLocalStorageState<boolean>(STORAGE_KEYS.SIDEBAR_VISIBLE, true)
   const [collapsedSections, setCollapsedSections] = useLocalStorageState<CollapsedSections>(STORAGE_KEYS.COLLAPSED_SECTIONS, {})
   const [pinnedTickets, setPinnedTickets] = useLocalStorageState<PinnedTicket[]>(STORAGE_KEYS.PINNED_TICKETS, [])
+  const [tagTypes, setTagTypes] = useLocalStorageState<string[]>(
+    STORAGE_KEYS.TAG_TYPES,
+    DEFAULT_TAG_TYPES,
+    { parse: parseTagTypes }
+  )
   const [newClient, setNewClient] = useState('')
+  const [newTagType, setNewTagType] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [now, setNow] = useState<Date>(() => new Date())
   const [activeReminder, setActiveReminder] = useState<'open' | 'close' | null>(null)
@@ -544,16 +583,17 @@ function App() {
 
   const updateDayEntries = (newEntries: TimeEntry[], specificDateKey: string | null = null): void => {
     const key = specificDateKey || dateKey
-    setEntries(prev => ({ ...prev, [key]: newEntries }))
+    const normalizedEntries = newEntries.map(normalizeEntryTags)
+    setEntries(prev => ({ ...prev, [key]: normalizedEntries }))
 
-    setEntriesForDay(key, newEntries).catch(error => {
+    setEntriesForDay(key, normalizedEntries).catch(error => {
       console.error('Failed to sync entries to IndexedDB:', error)
     })
   }
 
   const addCalendarEntry = (specificDateKey: string, newEntry: EditableTimeEntry): void => {
     const dayEntries = entries[specificDateKey] || []
-    updateDayEntries([...dayEntries, newEntry], specificDateKey)
+    updateDayEntries([...dayEntries, normalizeEntryTags(newEntry)], specificDateKey)
   }
 
   const deleteCalendarEntry = (specificDateKey: string, entryId: number): void => {
@@ -581,6 +621,7 @@ function App() {
   }
 
   const updateCalendarEntry = async (updatedEntry: TimeEntry, newDateKey?: string): Promise<{ shouldClose: boolean }> => {
+    const updatedEntryForSave = normalizeEntryTags(updatedEntry)
     let fromDateKey: string | null = null
     for (const key in entries) {
       if (entries[key]?.some((e) => e.id === updatedEntry.id)) {
@@ -600,24 +641,24 @@ function App() {
       const index = dayEntries.findIndex((e) => e.id === updatedEntry.id)
       if (index !== -1) {
         const updated = [...dayEntries]
-        updated[index] = updatedEntry
+        updated[index] = updatedEntryForSave
         updateDayEntries(updated, fromDateKey)
       }
       return { shouldClose: true }
     }
 
-    const overlapping = await findOverlappingEntries(targetDateKey, updatedEntry)
+    const overlapping = await findOverlappingEntries(targetDateKey, updatedEntryForSave)
     if (overlapping.length > 0) {
-      setShowOverlapConfirm({ entry: updatedEntry, fromDateKey, toDateKey: targetDateKey })
+      setShowOverlapConfirm({ entry: updatedEntryForSave, fromDateKey, toDateKey: targetDateKey })
       return { shouldClose: false }
     }
 
     try {
-      await moveEntry(fromDateKey, targetDateKey, updatedEntry)
+      await moveEntry(fromDateKey, targetDateKey, updatedEntryForSave)
       setEntries((prev) => ({
         ...prev,
         [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id),
-        [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntry]
+        [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntryForSave]
       }))
       return { shouldClose: true }
     } catch (error) {
@@ -642,6 +683,19 @@ function App() {
 
   const removeClient = (client: string): void => {
     setClients(clients.filter(c => c !== client))
+  }
+
+  const addTagType = (): void => {
+    const nextTag = normalizeTagPart(newTagType)
+    if (!nextTag) return
+
+    setTagTypes((prev) => normalizeTagList([...prev, nextTag]))
+    setNewTagType('')
+  }
+
+  const removeTagType = (tag: string): void => {
+    const lookup = tag.toLowerCase()
+    setTagTypes((prev) => prev.filter((existingTag) => existingTag.toLowerCase() !== lookup))
   }
 
   const handleAddTodo = async () => {
@@ -1101,31 +1155,31 @@ function App() {
   return (
     <>
       <div className="app">
-      <SearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        currentDate={currentDate}
-        currentView={currentView}
-        onNavigateToDate={(date) => {
-          const parsedDate = dateKeyToLocalNoon(date)
-          if (parsedDate) {
-            setCurrentDate(parsedDate)
-          } else {
-            notifyErrorToast('Invalid date', 'Could not navigate to the selected date.')
-          }
-        }}
-      />
-      {activeReminder && (
-        <div className="reminder-modal-overlay" onClick={handleDismissReminder}>
-          <div className="reminder-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Reminder</h3>
-            <p>Reminder: send {activeReminder} email</p>
-            <div className="confirmation-buttons">
-              <button className="btn-confirm" onClick={handleDismissReminder}>Dismiss</button>
+        <SearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          currentDate={currentDate}
+          currentView={currentView}
+          onNavigateToDate={(date) => {
+            const parsedDate = dateKeyToLocalNoon(date)
+            if (parsedDate) {
+              setCurrentDate(parsedDate)
+            } else {
+              notifyErrorToast('Invalid date', 'Could not navigate to the selected date.')
+            }
+          }}
+        />
+        {activeReminder && (
+          <div className="reminder-modal-overlay" onClick={handleDismissReminder}>
+            <div className="reminder-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Reminder</h3>
+              <p>Reminder: send {activeReminder} email</p>
+              <div className="confirmation-buttons">
+                <button className="btn-confirm" onClick={handleDismissReminder}>Dismiss</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
         <div className="main-content">
           <button
             className="sidebar-toggle-button"
@@ -1214,6 +1268,7 @@ function App() {
                 editingEntry={editingEntry}
                 editingEntryDateKey={editingEntryDateKey}
                 ticketOptions={ticketOptionGroups}
+                tagTypes={tagTypes}
                 isEntryUntracked={isEntryUntracked}
               />
             )}
@@ -1346,6 +1401,41 @@ function App() {
               </CollapsibleSection>
 
               <CollapsibleSection
+                title="Tag Types"
+                sectionName="tagTypes"
+                isCollapsed={collapsedSections.tagTypes}
+                onToggle={() => toggleSection('tagTypes')}
+              >
+                <div style={{ marginBottom: '15px' }}>
+                  <input
+                    type="text"
+                    placeholder="New tag type"
+                    value={newTagType}
+                    onChange={(e) => setNewTagType(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addTagType()}
+                  />
+                  <button className="add-button" onClick={addTagType}>
+                    Add Tag Type
+                  </button>
+                </div>
+
+                {tagTypes.length > 0 ? (
+                  <ul className="client-list">
+                    {tagTypes.map((tag) => (
+                      <li key={tag} className="client-item tag-type-item">
+                        <span className="tag-type-label">{tag}</span>
+                        <button onClick={() => removeTagType(tag)}>Remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                    No tag types configured yet
+                  </div>
+                )}
+              </CollapsibleSection>
+
+              <CollapsibleSection
                 title="Todo"
                 sectionName="todo"
                 isCollapsed={collapsedSections.todo}
@@ -1407,14 +1497,14 @@ function App() {
                                 className="todo-checkbox"
                                 checked={todo.completed}
                                 onCheckedChange={() => handleToggleTodo(todo.id)}
-                                  aria-label={todo.completed ? 'Mark todo as incomplete' : 'Mark todo as complete'}
-                                >
-                                  <Checkbox.Indicator className="todo-checkbox-indicator">
-                                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                                      <path d="M3.5 8.2 6.6 11 12.5 4.8" />
-                                    </svg>
-                                  </Checkbox.Indicator>
-                                </Checkbox.Root>
+                                aria-label={todo.completed ? 'Mark todo as incomplete' : 'Mark todo as complete'}
+                              >
+                                <Checkbox.Indicator className="todo-checkbox-indicator">
+                                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                                    <path d="M3.5 8.2 6.6 11 12.5 4.8" />
+                                  </svg>
+                                </Checkbox.Indicator>
+                              </Checkbox.Root>
                               <div className="todo-card-spacer" />
                               {todo.client && (
                                 <div className="todo-ticket">

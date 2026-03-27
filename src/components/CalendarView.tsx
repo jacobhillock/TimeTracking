@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { ChangeEvent, MouseEvent as ReactMouseEvent } from 'react'
 import type { TimeEntry } from '../services/types'
 import type { CalendarViewProps, EditableTimeEntry } from '../types/app'
 
@@ -36,7 +36,7 @@ function adjustColorBrightness(hexColor: string, percent: number): string {
   return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('')
 }
 
-function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, ticketOptions, isEntryUntracked, style }: CalendarViewProps) {
+function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, onDeleteEntry, clients, clientColors, defaultStartTime, intervalMinutes, calendarStartTime, calendarEndTime, onEditEntry, editingEntry, editingEntryDateKey, ticketOptions, tagTypes, isEntryUntracked, style }: CalendarViewProps) {
   const [dragStartRegion, setDragStartRegion] = useState<DragRegion | null>(null)
   const [dragCurrentRegion, setDragCurrentRegion] = useState<DragRegion | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -47,8 +47,48 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
   const [quickTicketSelection, setQuickTicketSelection] = useState('')
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ scrollHeight: 0 })
   const gridRef = useRef<HTMLDivElement | null>(null)
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null)
   const businessWeekDates = getBusinessWeekDates()
   const allTicketOptions = [...ticketOptions.pinned, ...ticketOptions.todos, ...ticketOptions.recent]
+  const selectedEntryTags = editingEntry?.tags || []
+  const availableTagTypes = (() => {
+    const options = [...tagTypes]
+    const seen = new Set(options.map((tag) => tag.toLowerCase()))
+
+    selectedEntryTags.forEach((tag) => {
+      const trimmedTag = tag.trim()
+      if (!trimmedTag) return
+      const lookup = trimmedTag.toLowerCase()
+      if (seen.has(lookup)) return
+      seen.add(lookup)
+      options.push(trimmedTag)
+    })
+
+    return options
+  })()
+  const normalizedSelectedTags = (() => {
+    const optionsByLookup = new Map(availableTagTypes.map((tag) => [tag.toLowerCase(), tag]))
+    const seen = new Set<string>()
+    const normalized: string[] = []
+
+    selectedEntryTags.forEach((tag) => {
+      const trimmedTag = tag.trim()
+      if (!trimmedTag) return
+
+      const lookup = trimmedTag.toLowerCase()
+      if (seen.has(lookup)) return
+
+      seen.add(lookup)
+      normalized.push(optionsByLookup.get(lookup) || trimmedTag)
+    })
+
+    return normalized
+  })()
+  const resizeDescriptionTextarea = (element: HTMLTextAreaElement | null): void => {
+    if (!element) return
+    element.style.height = 'auto'
+    element.style.height = `${element.scrollHeight}px`
+  }
 
   const handleSave = async () => {
     if (!editingEntry) return
@@ -170,6 +210,7 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
       ticket: '',
       description: '',
       disabled: false,
+      tags: [],
       isNew: true,
     }
 
@@ -201,6 +242,10 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
   useEffect(() => {
     setQuickTicketSelection('')
   }, [editingEntry?.id])
+
+  useEffect(() => {
+    resizeDescriptionTextarea(descriptionRef.current)
+  }, [editingEntry?.id, editingEntry?.description])
 
   useEffect(() => {
     const updateGridMetrics = (): void => {
@@ -272,6 +317,29 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
       ticket: selectedOption.ticket
     }, editingEntryDateKey)
     setQuickTicketSelection('')
+  }
+
+  const handleTagSelectionChange = (event: ChangeEvent<HTMLSelectElement>): void => {
+    if (!editingEntry) return
+
+    const nextTags = Array.from(event.currentTarget.selectedOptions, (option) => option.value)
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0)
+
+    const normalizedTags: string[] = []
+    const seen = new Set<string>()
+
+    nextTags.forEach((tag) => {
+      const lookup = tag.toLowerCase()
+      if (seen.has(lookup)) return
+      seen.add(lookup)
+      normalizedTags.push(tag)
+    })
+
+    onEditEntry({
+      ...editingEntry,
+      tags: normalizedTags
+    }, editingEntryDateKey)
   }
 
   return (
@@ -425,94 +493,152 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
 
       {editingEntry && (
         <div className="calendar-modal-overlay">
-          <div
-            className="calendar-modal"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        <div
+          className="calendar-modal"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault()
                 void handleSave()
               }
-            }}
-          >
-            <h3>{editingEntry.isNew ? 'New Entry' : 'Edit Entry'}</h3>
+          }}
+        >
+          <h3>{editingEntry.isNew ? 'New Entry' : 'Edit Entry'}</h3>
+          <div className="modal-grid-row modal-grid-row-three">
             <div className="modal-field">
               <label>Date</label>
-              <input type="date" value={editingEntryDateKey || ''} onChange={(e) => onEditEntry({ ...editingEntry }, e.target.value)} tabIndex={0} />
+              <input
+                type="date"
+                value={editingEntryDateKey || ''}
+                onChange={(e) => onEditEntry({ ...editingEntry }, e.target.value)}
+                tabIndex={0}
+              />
             </div>
             <div className="modal-field">
               <label>Start Time</label>
-              <input type="time" value={editingEntry.startTime} onChange={(e) => onEditEntry({ ...editingEntry, startTime: e.target.value }, editingEntryDateKey)} tabIndex={1} />
+              <input
+                type="time"
+                value={editingEntry.startTime}
+                onChange={(e) => onEditEntry({ ...editingEntry, startTime: e.target.value }, editingEntryDateKey)}
+                tabIndex={1}
+              />
             </div>
             <div className="modal-field">
               <label>End Time</label>
-              <input type="time" value={editingEntry.endTime} onChange={(e) => onEditEntry({ ...editingEntry, endTime: e.target.value }, editingEntryDateKey)} tabIndex={2} />
+              <input
+                type="time"
+                value={editingEntry.endTime}
+                onChange={(e) => onEditEntry({ ...editingEntry, endTime: e.target.value }, editingEntryDateKey)}
+                tabIndex={2}
+              />
             </div>
+          </div>
+          <div className="modal-grid-row modal-grid-row-three modal-grid-row-ticket">
             <div className="modal-field">
-              <div className="modal-split-row">
-                <div className="modal-split-field">
-                  <label>Client</label>
-                  <select value={editingEntry.client} onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)} tabIndex={3}>
-                    <option value="">Select Client</option>
-                    {clients.map((client) => (
-                      <option key={client} value={client}>
-                        {client}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="modal-split-field">
-                  <label>Select ticket already logged to</label>
-                  <select
-                    value={quickTicketSelection}
-                    onChange={(e) => handleQuickTicketSelect(e.target.value)}
-                    tabIndex={4}
-                  >
-                    <option value="">Select ticket...</option>
-                    {ticketOptions.pinned.length > 0 && (
-                      <optgroup label="Pinned">
-                        {ticketOptions.pinned.map((option) => (
-                          <option key={`pinned-${option.key}`} value={option.key}>
-                            {option.friendlyName?.trim()
-                              ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
-                              : `${option.client}-${option.ticket}`}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {ticketOptions.todos.length > 0 && (
-                      <optgroup label="Todos">
-                        {ticketOptions.todos.map((option) => (
-                          <option key={`todo-${option.key}`} value={option.key}>
-                            {option.friendlyName?.trim()
-                              ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
-                              : `${option.client}-${option.ticket}`}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {ticketOptions.recent.length > 0 && (
-                      <optgroup label="Recent 7 days">
-                        {ticketOptions.recent.map((option) => (
-                          <option key={`recent-${option.key}`} value={option.key}>
-                            {option.friendlyName?.trim()
-                              ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
-                              : `${option.client}-${option.ticket}`}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </div>
-              </div>
+              <label>Client</label>
+              <select
+                value={editingEntry.client}
+                onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)}
+                tabIndex={3}
+              >
+                <option value="">Select Client</option>
+                {clients.map((client) => (
+                  <option key={client} value={client}>
+                    {client}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="modal-field">
               <label>Ticket #</label>
-              <input type="text" value={editingEntry.ticket} onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)} tabIndex={5} />
+              <input
+                type="text"
+                value={editingEntry.ticket}
+                onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)}
+                tabIndex={4}
+              />
             </div>
             <div className="modal-field">
+              <label>Select ticket already logged to</label>
+              <select
+                value={quickTicketSelection}
+                onChange={(e) => handleQuickTicketSelect(e.target.value)}
+                tabIndex={5}
+              >
+                <option value="">Select ticket...</option>
+                {ticketOptions.pinned.length > 0 && (
+                  <optgroup label="Pinned">
+                    {ticketOptions.pinned.map((option) => (
+                      <option key={`pinned-${option.key}`} value={option.key}>
+                        {option.friendlyName?.trim()
+                          ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                          : `${option.client}-${option.ticket}`}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {ticketOptions.todos.length > 0 && (
+                  <optgroup label="Todos">
+                    {ticketOptions.todos.map((option) => (
+                      <option key={`todo-${option.key}`} value={option.key}>
+                        {option.friendlyName?.trim()
+                          ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                          : `${option.client}-${option.ticket}`}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {ticketOptions.recent.length > 0 && (
+                  <optgroup label="Recent 7 days">
+                    {ticketOptions.recent.map((option) => (
+                      <option key={`recent-${option.key}`} value={option.key}>
+                        {option.friendlyName?.trim()
+                          ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                          : `${option.client}-${option.ticket}`}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          </div>
+            <div className="modal-field">
               <label>Description</label>
-              <textarea value={editingEntry.description} onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)} rows={3} tabIndex={6} />
+              <textarea
+                ref={descriptionRef}
+                value={editingEntry.description}
+                onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)}
+                onInput={(e) => resizeDescriptionTextarea(e.currentTarget)}
+                rows={1}
+                style={{ overflow: 'hidden' }}
+                tabIndex={6}
+              />
+            </div>
+            <div className="modal-field">
+              <label>Tags</label>
+              <select
+                multiple
+                value={normalizedSelectedTags}
+                onChange={handleTagSelectionChange}
+                tabIndex={7}
+                size={Math.max(4, Math.min(availableTagTypes.length || 0, 8))}
+                disabled={availableTagTypes.length === 0}
+              >
+                {availableTagTypes.length > 0 ? (
+                  availableTagTypes.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>
+                    No tag types configured
+                  </option>
+                )}
+              </select>
+              <div className="modal-helper-text">
+                Hold Ctrl or Cmd to choose multiple tags.
+              </div>
             </div>
             <div className="modal-field modal-field-checkbox">
               <label>
@@ -524,22 +650,22 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
                     if (isEntryUntracked?.(editingEntry) && e.target.checked) return
                     onEditEntry({ ...editingEntry, disabled: e.target.checked }, editingEntryDateKey)
                   }}
-                  tabIndex={7}
+                  tabIndex={8}
                 />
                 Logged
               </label>
             </div>
             <div className="modal-buttons">
               {editingEntry.isNew ? (
-                <button className="btn-cancel" onClick={() => setShowCloseConfirm(true)} tabIndex={9}>
+                <button className="btn-cancel" onClick={() => setShowCloseConfirm(true)} tabIndex={10}>
                   Discard
                 </button>
               ) : (
-                <button className="btn-cancel" onClick={() => onEditEntry(null, null)} tabIndex={9}>
+                <button className="btn-cancel" onClick={() => onEditEntry(null, null)} tabIndex={10}>
                   Cancel
                 </button>
               )}
-              <button className="btn-save" onClick={() => void handleSave()} tabIndex={8}>
+              <button className="btn-save" onClick={() => void handleSave()} tabIndex={9}>
                 Save
               </button>
             </div>
