@@ -50,7 +50,8 @@ function TaskView({
       client: '',
       ticket: '',
       description: '',
-      disabled: false
+      disabled: false,
+      tags: []
     }
 
     onUpdateDayEntries([...dayEntries, newEntry])

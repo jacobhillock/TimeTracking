@@ -6,6 +6,7 @@ export interface TimeEntry {
   ticket: string;
   description: string;
   disabled: boolean;
+  tags?: string[];
 }
 
 export interface DayEntries {
