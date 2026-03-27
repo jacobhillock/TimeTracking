@@ -894,6 +894,10 @@ body.dark-mode .preview-time {
   padding: 24px;
   max-width: 860px;
   width: min(96vw, 860px);
+  max-height: 96vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 

@@ -47,6 +47,7 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
   const [quickTicketSelection, setQuickTicketSelection] = useState('')
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ scrollHeight: 0 })
   const gridRef = useRef<HTMLDivElement | null>(null)
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null)
   const businessWeekDates = getBusinessWeekDates()
   const allTicketOptions = [...ticketOptions.pinned, ...ticketOptions.todos, ...ticketOptions.recent]
   const selectedEntryTags = editingEntry?.tags || []
@@ -65,6 +66,29 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
 
     return options
   })()
+  const normalizedSelectedTags = (() => {
+    const optionsByLookup = new Map(availableTagTypes.map((tag) => [tag.toLowerCase(), tag]))
+    const seen = new Set<string>()
+    const normalized: string[] = []
+
+    selectedEntryTags.forEach((tag) => {
+      const trimmedTag = tag.trim()
+      if (!trimmedTag) return
+
+      const lookup = trimmedTag.toLowerCase()
+      if (seen.has(lookup)) return
+
+      seen.add(lookup)
+      normalized.push(optionsByLookup.get(lookup) || trimmedTag)
+    })
+
+    return normalized
+  })()
+  const resizeDescriptionTextarea = (element: HTMLTextAreaElement | null): void => {
+    if (!element) return
+    element.style.height = 'auto'
+    element.style.height = `${element.scrollHeight}px`
+  }
 
   const handleSave = async () => {
     if (!editingEntry) return
@@ -218,6 +242,10 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
   useEffect(() => {
     setQuickTicketSelection('')
   }, [editingEntry?.id])
+
+  useEffect(() => {
+    resizeDescriptionTextarea(descriptionRef.current)
+  }, [editingEntry?.id, editingEntry?.description])
 
   useEffect(() => {
     const updateGridMetrics = (): void => {
@@ -577,9 +605,12 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
             <div className="modal-field">
               <label>Description</label>
               <textarea
+                ref={descriptionRef}
                 value={editingEntry.description}
                 onChange={(e) => onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)}
-                rows={3}
+                onInput={(e) => resizeDescriptionTextarea(e.currentTarget)}
+                rows={1}
+                style={{ overflow: 'hidden' }}
                 tabIndex={6}
               />
             </div>
@@ -587,7 +618,7 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
               <label>Tags</label>
               <select
                 multiple
-                value={selectedEntryTags}
+                value={normalizedSelectedTags}
                 onChange={handleTagSelectionChange}
                 tabIndex={7}
                 size={Math.max(4, Math.min(availableTagTypes.length || 0, 8))}
