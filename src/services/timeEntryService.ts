@@ -36,36 +36,55 @@ function groupRecordsByDate(records: TimeEntryRecord[]): Record<string, TimeEntr
   return result;
 }
 
-async function getDayRecords(date: string): Promise<TimeEntryRecord[]> {
-  const entries = await getAllByIndex(TIME_ENTRY_STORE_NAME, TIME_ENTRY_DATE_INDEX, date);
-  return sortTimeEntryRecords(entries);
+async function getDayRecords(date: string, store?: IDBObjectStore): Promise<TimeEntryRecord[]> {
+  const entries = store
+    ? await store.index(TIME_ENTRY_DATE_INDEX).getAll(date)
+    : await getAllByIndex(TIME_ENTRY_STORE_NAME, TIME_ENTRY_DATE_INDEX, date);
+  return sortTimeEntryRecords(entries as TimeEntryRecord[]);
 }
 
-async function getDayRecordIds(date: string): Promise<number[]> {
-  const recordIds = await getAllKeysByIndex(TIME_ENTRY_STORE_NAME, TIME_ENTRY_DATE_INDEX, date);
-  return recordIds;
+async function getDayRecordIds(date: string, store?: IDBObjectStore): Promise<number[]> {
+  const recordIds = store
+    ? await store.index(TIME_ENTRY_DATE_INDEX).getAllKeys(date)
+    : await getAllKeysByIndex(TIME_ENTRY_STORE_NAME, TIME_ENTRY_DATE_INDEX, date);
+  return recordIds as number[];
 }
 
-async function replaceEntriesForDay(date: string, entries: TimeEntry[]): Promise<void> {
-  const [tx, close] = await getTx([TIME_ENTRY_STORE_NAME], 'readwrite');
-  const store = tx.objectStore(TIME_ENTRY_STORE_NAME);
-  const existingIds = await store.index(TIME_ENTRY_DATE_INDEX).getAllKeys(date);
+async function saveDayRecords(date: string, records: TimeEntryRecord[], store: IDBObjectStore): Promise<void> {
+  const existingIds = await getDayRecordIds(date, store);
 
   for (const id of existingIds) {
     await store.delete(id);
   }
 
-  for (const [sortOrder, entry] of entries.entries()) {
-    await store.put(toTimeEntryRecord(entry, date, sortOrder));
+  for (const record of records) {
+    await store.put(record);
   }
+}
+
+async function replaceEntriesForDay(date: string, entries: TimeEntry[]): Promise<void> {
+  const [tx, close] = await getTx(TIME_ENTRY_STORE_NAME, 'readwrite');
+  const store = tx.objectStore(TIME_ENTRY_STORE_NAME);
+  const records = entries.map((entry, sortOrder) => toTimeEntryRecord(entry, date, sortOrder));
+  await saveDayRecords(date, records, store);
 
   await close();
 }
 
-async function upsertEntryRecord(date: string, updatedEntry: TimeEntry, sortOrder: number): Promise<void> {
-  const [tx, close] = await getTx([TIME_ENTRY_STORE_NAME], 'readwrite');
-  const store = tx.objectStore(TIME_ENTRY_STORE_NAME);
-  await store.put(toTimeEntryRecord(updatedEntry, date, sortOrder));
+async function upsertEntryRecord(
+  date: string,
+  updatedEntry: TimeEntry,
+  sortOrder: number,
+  store?: IDBObjectStore
+): Promise<void> {
+  if (store) {
+    await store.put(toTimeEntryRecord(updatedEntry, date, sortOrder));
+    return;
+  }
+
+  const [tx, close] = await getTx(TIME_ENTRY_STORE_NAME, 'readwrite');
+  const txStore = tx.objectStore(TIME_ENTRY_STORE_NAME);
+  await txStore.put(toTimeEntryRecord(updatedEntry, date, sortOrder));
   await close();
 }
 
@@ -119,11 +138,14 @@ export async function setEntriesForDay(date: string, entries: TimeEntry[]): Prom
 
 export async function addEntry(date: string, entry: TimeEntry): Promise<void> {
   try {
-    const existingEntries = await getDayRecords(date);
+    const [tx, close] = await getTx(TIME_ENTRY_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(TIME_ENTRY_STORE_NAME);
+    const existingEntries = await getDayRecords(date, store);
     const nextSortOrder = existingEntries.length > 0
       ? Math.max(...existingEntries.map((record) => record.sortOrder)) + 1
       : 0;
-    await upsertEntryRecord(date, entry, nextSortOrder);
+    await upsertEntryRecord(date, entry, nextSortOrder, store);
+    await close();
   } catch (error) {
     console.error(`Failed to add entry for ${date}:`, error);
     throw new Error('Failed to add entry');
@@ -132,15 +154,24 @@ export async function addEntry(date: string, entry: TimeEntry): Promise<void> {
 
 export async function updateEntry(date: string, updatedEntry: TimeEntry): Promise<void> {
   try {
-    const existingEntries = await getDayRecords(date);
+    const [tx, close] = await getTx(TIME_ENTRY_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(TIME_ENTRY_STORE_NAME);
+    const existingEntries = await getDayRecords(date, store);
     const existingEntry = existingEntries.find((entry) => entry.id === updatedEntry.id);
 
     if (!existingEntry) {
       console.warn(`Entry ${updatedEntry.id} not found for ${date}`);
+      await close();
       return;
     }
 
-    await upsertEntryRecord(date, updatedEntry, existingEntry.sortOrder);
+    const nextEntries = existingEntries.map((entry) => (
+      entry.id === updatedEntry.id
+        ? toTimeEntryRecord(updatedEntry, date, existingEntry.sortOrder)
+        : entry
+    ));
+    await saveDayRecords(date, nextEntries, store);
+    await close();
   } catch (error) {
     console.error(`Failed to update entry for ${date}:`, error);
     throw new Error('Failed to update entry');
@@ -163,10 +194,13 @@ export async function deleteEntry(date: string, entryId: number): Promise<void> 
 
 export async function deleteDay(date: string): Promise<void> {
   try {
-    const existingIds = await getDayRecordIds(date);
+    const [tx, close] = await getTx(TIME_ENTRY_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(TIME_ENTRY_STORE_NAME);
+    const existingIds = await getDayRecordIds(date, store);
     for (const id of existingIds) {
-      await deleteRecord(TIME_ENTRY_STORE_NAME, id);
+      await store.delete(id);
     }
+    await close();
     console.log(`Deleted all entries for ${date}`);
   } catch (error) {
     console.error(`Failed to delete entries for ${date}:`, error);

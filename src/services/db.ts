@@ -45,8 +45,8 @@ type AutoIncrementStoreName = typeof TODO_STORE_NAME;
 type KeyedStoreName = Exclude<StoreName, AutoIncrementStoreName>;
 type StoreValue<T extends StoreName> = TimeTrackerDB[T]['value'];
 type StoreKey<T extends StoreName> = TimeTrackerDB[T]['key'];
-type StoreIndexMap<T extends StoreName> = TimeTrackerDB[T] extends { indexes: infer Indexes } ? Indexes : never;
-type StoreIndexName<T extends StoreName> = keyof StoreIndexMap<T> & string;
+type StoreIndexMap<T extends StoreName> = TimeTrackerDB[T]['indexes'];
+type StoreIndexName<T extends StoreName> = Extract<keyof StoreIndexMap<T>, string>;
 type StoreIndexKey<T extends StoreName, I extends StoreIndexName<T>> = StoreIndexMap<T>[I];
 type TxMode = 'readonly' | 'readwrite';
 
@@ -78,7 +78,7 @@ export function fromTimeEntryRecord(entry: TimeEntryRecord): TimeEntry {
   return publicEntry;
 }
 
-function ensureTodoIndex(
+function ensureIndex(
   store: IDBObjectStore,
   indexName: string,
   keyPath: string
@@ -102,24 +102,8 @@ function ensureTodoIndexes(
     ? transaction.objectStore(TODO_STORE_NAME)
     : database.createObjectStore(TODO_STORE_NAME, { autoIncrement: true })) as unknown as IDBObjectStore;
 
-  ensureTodoIndex(todoStore, TODO_INDEX_COMPLETED, 'completedIndex');
-  ensureTodoIndex(todoStore, TODO_INDEX_COMPLETED_DATE, 'completedDateIndex');
-}
-
-function ensureTimeEntryIndex(
-  store: IDBObjectStore,
-  indexName: string,
-  keyPath: string
-): void {
-  if (store.indexNames.contains(indexName)) {
-    const existingKeyPath = store.index(indexName).keyPath;
-    if (existingKeyPath === keyPath) {
-      return;
-    }
-    store.deleteIndex(indexName);
-  }
-
-  store.createIndex(indexName, keyPath);
+  ensureIndex(todoStore, TODO_INDEX_COMPLETED, 'completedIndex');
+  ensureIndex(todoStore, TODO_INDEX_COMPLETED_DATE, 'completedDateIndex');
 }
 
 function ensureTimeEntryStore(
@@ -130,7 +114,7 @@ function ensureTimeEntryStore(
     ? transaction.objectStore(TIME_ENTRY_STORE_NAME)
     : database.createObjectStore(TIME_ENTRY_STORE_NAME, { keyPath: 'id' })) as unknown as IDBObjectStore;
 
-  ensureTimeEntryIndex(timeEntryStore, TIME_ENTRY_DATE_INDEX, 'date');
+  ensureIndex(timeEntryStore, TIME_ENTRY_DATE_INDEX, 'date');
   return timeEntryStore;
 }
 
@@ -165,7 +149,7 @@ async function migrateTimeEntryRecords(
 
   database.deleteObjectStore(TIME_ENTRY_STORE_NAME);
   const timeEntryStore = database.createObjectStore(TIME_ENTRY_STORE_NAME, { keyPath: 'id' }) as unknown as IDBObjectStore;
-  ensureTimeEntryIndex(timeEntryStore, TIME_ENTRY_DATE_INDEX, 'date');
+  ensureIndex(timeEntryStore, TIME_ENTRY_DATE_INDEX, 'date');
 
   for (const record of flattenLegacyTimeEntries(legacyEntriesByDate)) {
     await timeEntryStore.put(record);
@@ -192,14 +176,6 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
   try {
     dbInstance = await openDB<TimeTrackerDB>(DB_NAME, DB_VERSION, {
       async upgrade(db, oldVersion, _newVersion, transaction) {
-        if (oldVersion < 6) {
-          if (db.objectStoreNames.contains(TIME_ENTRY_STORE_NAME)) {
-            await migrateTimeEntryRecords(db, transaction);
-          } else {
-            const timeEntryStore = ensureTimeEntryStore(db, transaction);
-            ensureTimeEntryIndex(timeEntryStore, TIME_ENTRY_DATE_INDEX, 'date');
-          }
-        }
         if (oldVersion < 3) {
           ensureTodoIndexes(db, transaction);
         }
@@ -209,6 +185,13 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
         if (oldVersion < 5 && db.objectStoreNames.contains(TODO_STORE_NAME)) {
           ensureTodoIndexes(db, transaction);
           await migrateTodoRecords(transaction);
+        }
+        if (oldVersion < 6) {
+          if (db.objectStoreNames.contains(TIME_ENTRY_STORE_NAME)) {
+            await migrateTimeEntryRecords(db, transaction);
+          } else {
+            ensureTimeEntryStore(db, transaction);
+          }
         }
       },
     });
@@ -252,30 +235,30 @@ export async function migrateFromLocalStorage(): Promise<void> {
   }
 }
 
-export async function getTx(
-  storeNames: StoreName[],
+export async function getTx<T extends StoreName>(
+  storeName: T,
   mode: TxMode = 'readonly'
-): Promise<[any, () => Promise<void>]> {
+): Promise<[IDBPTransaction<TimeTrackerDB, [T], TxMode>, () => Promise<void>]> {
   const db = await getDB();
-  const tx = db.transaction(storeNames as any, mode);
+  const tx = db.transaction(storeName, mode);
   return [tx, async () => await tx.done];
 }
 
-export async function getByKey(
-  storeName: StoreName,
-  key: IDBValidKey
-): Promise<any> {
+export async function getByKey<T extends StoreName>(
+  storeName: T,
+  key: StoreKey<T>
+): Promise<StoreValue<T> | undefined> {
   const db = await getDB();
-  return await (db as any).get(storeName, key);
+  return await db.get(storeName, key);
 }
 
-export async function getManyByKeys(
-  storeName: StoreName,
-  keys: IDBValidKey[]
-): Promise<any[]> {
-  const [tx, close] = await getTx([storeName], 'readonly');
+export async function getManyByKeys<T extends StoreName>(
+  storeName: T,
+  keys: StoreKey<T>[]
+): Promise<Array<StoreValue<T> | undefined>> {
+  const [tx, close] = await getTx(storeName, 'readonly');
   const store = tx.objectStore(storeName);
-  const values: any[] = [];
+  const values: Array<StoreValue<T> | undefined> = [];
 
   for (const key of keys) {
     values.push(await store.get(key));
@@ -285,57 +268,68 @@ export async function getManyByKeys(
   return values;
 }
 
-export async function getAll(storeName: StoreName): Promise<any[]> {
+export async function getAll<T extends StoreName>(storeName: T): Promise<Array<StoreValue<T>>> {
   const db = await getDB();
-  return await (db as any).getAll(storeName);
+  return await db.getAll(storeName);
 }
 
-export async function addRecord(
-  storeName: StoreName,
-  value: any,
-  key?: IDBValidKey
-): Promise<any> {
+export async function addRecord<T extends StoreName>(
+  storeName: T,
+  value: StoreValue<T>,
+  key?: StoreKey<T>
+): Promise<StoreKey<T>> {
   const db = await getDB();
-  const dbAny = db as any;
 
   if (key === undefined) {
-    return await dbAny.add(storeName, value);
+    return await db.add(storeName, value);
   }
 
-  return await dbAny.add(storeName, value, key);
+  return await db.add(storeName, value, key);
 }
 
-export async function putRecord(
-  storeName: StoreName,
-  value: any,
-  key: IDBValidKey
-): Promise<any> {
+export async function putRecord<T extends StoreName>(
+  storeName: T,
+  value: StoreValue<T>,
+  key?: StoreKey<T>
+): Promise<StoreKey<T>> {
   const db = await getDB();
-  return await (db as any).put(storeName, value, key);
+  if (key === undefined) {
+    return await db.put(storeName, value);
+  }
+
+  return await db.put(storeName, value, key);
 }
 
-export async function deleteRecord(
-  storeName: StoreName,
-  key: IDBValidKey
+export async function deleteRecord<T extends StoreName>(
+  storeName: T,
+  key: StoreKey<T>
 ): Promise<void> {
   const db = await getDB();
-  await (db as any).delete(storeName, key);
+  await db.delete(storeName, key);
 }
 
-export async function getAllByIndex(
-  storeName: StoreName,
-  indexName: string,
-  query: IDBValidKey | IDBKeyRange
-): Promise<any[]> {
-  const db = await getDB();
-  return await (db as any).getAllFromIndex(storeName, indexName, query);
+export async function getAllByIndex<T extends StoreName, I extends StoreIndexName<T>>(
+  storeName: T,
+  indexName: I,
+  query: StoreIndexKey<T, I> | IDBKeyRange
+): Promise<Array<StoreValue<T>>> {
+  const [tx, close] = await getTx(storeName, 'readonly');
+  const store = tx.objectStore(storeName);
+  const index = store.index(indexName);
+  const values = await index.getAll(query as never);
+  await close();
+  return values as Array<StoreValue<T>>;
 }
 
-export async function getAllKeysByIndex(
-  storeName: StoreName,
-  indexName: string,
-  query: IDBValidKey | IDBKeyRange
-): Promise<any[]> {
-  const db = await getDB();
-  return await (db as any).getAllKeysFromIndex(storeName, indexName, query);
+export async function getAllKeysByIndex<T extends StoreName, I extends StoreIndexName<T>>(
+  storeName: T,
+  indexName: I,
+  query: StoreIndexKey<T, I> | IDBKeyRange
+): Promise<Array<StoreKey<T>>> {
+  const [tx, close] = await getTx(storeName, 'readonly');
+  const store = tx.objectStore(storeName);
+  const index = store.index(indexName);
+  const keys = await index.getAllKeys(query as never);
+  await close();
+  return keys as Array<StoreKey<T>>;
 }
