@@ -63,22 +63,21 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
     const day = String(date.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
   }
+  const timeToMinutes = (timeStr: string): number => {
+    const [h, m] = timeStr.split(':').map(Number)
+    return h * 60 + m
+  }
   const latestTicketOption = (() => {
     const targetDateKey = editingEntryDateKey || formatLocalDate(currentDate)
     const dayEntries = entries[targetDateKey] || []
     const trackedEntries = dayEntries.filter((entry) => entry.client.trim() && entry.ticket.trim())
     if (trackedEntries.length === 0) return null
 
-    const toMinutes = (timeStr: string): number => {
-      const [h, m] = timeStr.split(':').map(Number)
-      return h * 60 + m
-    }
-
     const latestEntry = [...trackedEntries].sort((a, b) => {
-      const endDiff = toMinutes(b.endTime) - toMinutes(a.endTime)
+      const endDiff = timeToMinutes(b.endTime) - timeToMinutes(a.endTime)
       if (endDiff !== 0) return endDiff
 
-      const startDiff = toMinutes(b.startTime) - toMinutes(a.startTime)
+      const startDiff = timeToMinutes(b.startTime) - timeToMinutes(a.startTime)
       if (startDiff !== 0) return startDiff
 
       return b.id - a.id
@@ -176,11 +175,6 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
       dates.push(date)
     }
     return dates
-  }
-
-  const timeToMinutes = (timeStr: string): number => {
-    const [h, m] = timeStr.split(':').map(Number)
-    return h * 60 + m
   }
 
   const minutesToTime = (mins: number): string => {
