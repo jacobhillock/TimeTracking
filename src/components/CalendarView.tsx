@@ -19,6 +19,13 @@ interface GridMetrics {
   scrollHeight: number
 }
 
+interface LatestTicketOption {
+  key: string
+  client: string
+  ticket: string
+  label: string
+}
+
 function getContrastColor(hexColor: string): string {
   const hex = hexColor.replace('#', '')
   const r = parseInt(hex.substr(0, 2), 16)
@@ -50,6 +57,49 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null)
   const businessWeekDates = getBusinessWeekDates()
   const allTicketOptions = [...ticketOptions.pinned, ...ticketOptions.todos, ...ticketOptions.recent]
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  const latestTicketOption = (() => {
+    const targetDateKey = editingEntryDateKey || formatLocalDate(currentDate)
+    const dayEntries = entries[targetDateKey] || []
+    const trackedEntries = dayEntries.filter((entry) => entry.client.trim() && entry.ticket.trim())
+    if (trackedEntries.length === 0) return null
+
+    const toMinutes = (timeStr: string): number => {
+      const [h, m] = timeStr.split(':').map(Number)
+      return h * 60 + m
+    }
+
+    const latestEntry = [...trackedEntries].sort((a, b) => {
+      const endDiff = toMinutes(b.endTime) - toMinutes(a.endTime)
+      if (endDiff !== 0) return endDiff
+
+      const startDiff = toMinutes(b.startTime) - toMinutes(a.startTime)
+      if (startDiff !== 0) return startDiff
+
+      return b.id - a.id
+    })[0]
+
+    const client = latestEntry.client.trim()
+    const ticket = latestEntry.ticket.trim()
+    if (!client || !ticket) return null
+
+    const matchingOption = allTicketOptions.find((option) => option.client === client && option.ticket === ticket)
+    const label = matchingOption?.friendlyName?.trim()
+      ? `Latest entry: ${matchingOption.friendlyName.trim()} (${client}-${ticket})`
+      : `Latest entry: ${client}-${ticket}`
+
+    return {
+      key: '__latest_entry__',
+      client,
+      ticket,
+      label
+    } satisfies LatestTicketOption
+  })()
   const selectedEntryTags = editingEntry?.tags || []
   const availableTagTypes = (() => {
     const options = [...tagTypes]
@@ -137,13 +187,6 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
     const h = Math.floor(mins / 60)
     const m = mins % 60
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  }
-
-  const formatLocalDate = (date: Date): string => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
   }
 
   const getVisibleMinutes = (): { start: number; end: number; duration: number } => {
@@ -307,6 +350,16 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
   const handleQuickTicketSelect = (value: string): void => {
     setQuickTicketSelection(value)
     if (!editingEntry || !value) return
+
+    if (value === latestTicketOption?.key) {
+      onEditEntry({
+        ...editingEntry,
+        client: latestTicketOption.client,
+        ticket: latestTicketOption.ticket
+      }, editingEntryDateKey)
+      setQuickTicketSelection('')
+      return
+    }
 
     const selectedOption = allTicketOptions.find((option) => option.key === value)
     if (!selectedOption) return
@@ -566,6 +619,11 @@ function CalendarView({ entries, now, currentDate, onAddEntry, onUpdateEntry, on
                 tabIndex={5}
               >
                 <option value="">Select ticket...</option>
+                {latestTicketOption && (
+                  <option key={latestTicketOption.key} value={latestTicketOption.key}>
+                    {latestTicketOption.label}
+                  </option>
+                )}
                 {ticketOptions.pinned.length > 0 && (
                   <optgroup label="Pinned">
                     {ticketOptions.pinned.map((option) => (
