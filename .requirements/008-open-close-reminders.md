@@ -20,7 +20,7 @@ I want the ability to add popups for open/close reminders in the app. This is to
 
 ## Questions:
 
-Put your questions below here. If you have no questions, do not update the file, re-review it and double check if there are any more questions, if still no  and say "ready".
+Put your questions below here. If you have no questions, do not update the file, re-review it and double check if there are any more questions, if still no and say "ready".
 
 ### 1. Reminder time already passed on open
 

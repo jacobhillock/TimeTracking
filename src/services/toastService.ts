@@ -1,49 +1,46 @@
-import { Toast } from '@base-ui-components/react/toast'
+import { Toast } from "@base-ui-components/react/toast";
 
-type ToastType = 'error' | 'success' | 'loading'
+type ToastType = "error" | "success" | "loading";
 
 interface QueuedToast {
-  title: string
-  description: string
-  type: ToastType
+  title: string;
+  description: string;
+  type: ToastType;
 }
 
-export const toastManager = Toast.createToastManager()
+export const toastManager = Toast.createToastManager();
 
-const pendingToasts: QueuedToast[] = []
-let toastSystemReady = false
+const pendingToasts: QueuedToast[] = [];
+let toastSystemReady = false;
 
 const enqueueToast = (toast: QueuedToast): void => {
   if (!toastSystemReady) {
-    pendingToasts.push(toast)
-    return
+    pendingToasts.push(toast);
+    return;
   }
 
-  toastManager.add(toast)
-}
+  toastManager.add(toast);
+};
 
 export const markToastSystemReady = (): void => {
-  toastSystemReady = true
+  toastSystemReady = true;
 
   while (pendingToasts.length > 0) {
-    const toast = pendingToasts.shift()
+    const toast = pendingToasts.shift();
     if (toast) {
-      toastManager.add(toast)
+      toastManager.add(toast);
     }
   }
-}
+};
 
 export const notifyErrorToast = (title: string, description: string): void => {
   enqueueToast({
     title,
     description,
-    type: 'error'
-  })
-}
+    type: "error",
+  });
+};
 
 export const notifyStorageParseFailure = (key: string): void => {
-  notifyErrorToast(
-    'Settings reset',
-    `Invalid saved value for "${key}". Using defaults.`
-  )
-}
+  notifyErrorToast("Settings reset", `Invalid saved value for "${key}". Using defaults.`);
+};

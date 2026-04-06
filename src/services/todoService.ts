@@ -10,13 +10,13 @@ import {
   TODO_INDEX_COMPLETED_DATE,
   TODO_COMPLETED_FALSE,
   TODO_STORE_NAME,
-} from './db';
-import type { Todo } from './types';
+} from "./db";
+import type { Todo } from "./types";
 
 function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -37,7 +37,7 @@ export async function getAllTodos(dateKey: string): Promise<Todo[]> {
       return !todo.completed || todo.completedDate === dateKey;
     });
   } catch (error) {
-    console.error('Failed to get all todos:', error);
+    console.error("Failed to get all todos:", error);
     return [];
   }
 }
@@ -46,7 +46,7 @@ export async function addTodo(
   description: string,
   client?: string,
   ticket?: string,
-  createdDate?: string
+  createdDate?: string,
 ): Promise<Todo | null> {
   try {
     const id = Date.now();
@@ -63,7 +63,7 @@ export async function addTodo(
     await addRecord(TODO_STORE_NAME, toTodoRecord(todo), id);
     return todo;
   } catch (error) {
-    console.error('Failed to add todo:', error);
+    console.error("Failed to add todo:", error);
     return null;
   }
 }
@@ -73,7 +73,7 @@ export async function toggleTodoCompletion(id: number): Promise<boolean> {
     const storedTodo = await getByKey(TODO_STORE_NAME, id);
 
     if (!storedTodo) {
-      console.error('Todo not found:', id);
+      console.error("Todo not found:", id);
       return false;
     }
 
@@ -81,15 +81,13 @@ export async function toggleTodoCompletion(id: number): Promise<boolean> {
     const updatedTodo: Todo = {
       ...todo,
       completed: !todo.completed,
-      completedDate: !todo.completed
-        ? formatLocalDate(new Date())
-        : undefined,
+      completedDate: !todo.completed ? formatLocalDate(new Date()) : undefined,
     };
 
     await putRecord(TODO_STORE_NAME, toTodoRecord(updatedTodo), id);
     return true;
   } catch (error) {
-    console.error('Failed to toggle todo completion:', error);
+    console.error("Failed to toggle todo completion:", error);
     return false;
   }
 }
@@ -99,17 +97,22 @@ export async function deleteTodo(id: number): Promise<boolean> {
     await deleteRecord(TODO_STORE_NAME, id);
     return true;
   } catch (error) {
-    console.error('Failed to delete todo:', error);
+    console.error("Failed to delete todo:", error);
     return false;
   }
 }
 
-export async function updateTodo(id: number, description: string, client?: string, ticket?: string): Promise<boolean> {
+export async function updateTodo(
+  id: number,
+  description: string,
+  client?: string,
+  ticket?: string,
+): Promise<boolean> {
   try {
     const storedTodo = await getByKey(TODO_STORE_NAME, id);
 
     if (!storedTodo) {
-      console.error('Todo not found:', id);
+      console.error("Todo not found:", id);
       return false;
     }
 
@@ -124,7 +127,7 @@ export async function updateTodo(id: number, description: string, client?: strin
     await putRecord(TODO_STORE_NAME, toTodoRecord(updatedTodo), id);
     return true;
   } catch (error) {
-    console.error('Failed to update todo:', error);
+    console.error("Failed to update todo:", error);
     return false;
   }
 }

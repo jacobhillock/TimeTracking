@@ -1,12 +1,19 @@
 {
   "name": "time_tracker",
-  "type": "module",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vp dev",
+    "build": "vp build",
     "build:local": "INCLUDE_BASE=1 bun run build",
-    "preview": "vite preview"
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "@base-ui-components/react": "^1.0.0-rc.0",
+    "idb": "^8.0.3",
+    "lodash": "^4.17.23",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -15,16 +22,15 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
     "baseline-browser-mapping": "^2.10.0",
-    "vite": "^7.1.12"
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plus": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
-  "dependencies": {
-    "@base-ui-components/react": "^1.0.0-rc.0",
-    "idb": "^8.0.3",
-    "lodash": "^4.17.23",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
-  }
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "packageManager": "bun@1.3.11"
 }
