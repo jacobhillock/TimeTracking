@@ -1,35 +1,35 @@
-import { useCallback, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
-import { notifyStorageParseFailure } from '../services/toastService'
+import { useCallback, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { notifyStorageParseFailure } from "../services/toastService";
 
 export const STORAGE_KEYS = {
-  CURRENT_VIEW: 'currentView',
-  CLIENTS: 'clients',
-  CLIENT_COLORS: 'clientColors',
-  JIRA_BASE_URL: 'jiraBaseUrl',
-  DEFAULT_START_TIME: 'defaultStartTime',
-  CALENDAR_INTERVAL: 'calendarInterval',
-  CALENDAR_START_TIME: 'calendarStartTime',
-  CALENDAR_END_TIME: 'calendarEndTime',
-  OPEN_REMINDER_TIME: 'openReminderTime',
-  CLOSE_REMINDER_TIME: 'closeReminderTime',
-  LAST_OPEN_REMINDER_DATE: 'lastOpenReminderDate',
-  LAST_CLOSE_REMINDER_DATE: 'lastCloseReminderDate',
-  DARK_MODE: 'darkMode',
-  SIDEBAR_VISIBLE: 'sidebarVisible',
-  COLLAPSED_SECTIONS: 'collapsedSections',
-  PINNED_TICKETS: 'pinnedTickets',
-  TAG_TYPES: 'tagTypes'
-} as const
+  CURRENT_VIEW: "currentView",
+  CLIENTS: "clients",
+  CLIENT_COLORS: "clientColors",
+  JIRA_BASE_URL: "jiraBaseUrl",
+  DEFAULT_START_TIME: "defaultStartTime",
+  CALENDAR_INTERVAL: "calendarInterval",
+  CALENDAR_START_TIME: "calendarStartTime",
+  CALENDAR_END_TIME: "calendarEndTime",
+  OPEN_REMINDER_TIME: "openReminderTime",
+  CLOSE_REMINDER_TIME: "closeReminderTime",
+  LAST_OPEN_REMINDER_DATE: "lastOpenReminderDate",
+  LAST_CLOSE_REMINDER_DATE: "lastCloseReminderDate",
+  DARK_MODE: "darkMode",
+  SIDEBAR_VISIBLE: "sidebarVisible",
+  COLLAPSED_SECTIONS: "collapsedSections",
+  PINNED_TICKETS: "pinnedTickets",
+  TAG_TYPES: "tagTypes",
+} as const;
 
-type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
+type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 
 interface LocalStorageStateOptions<T> {
-  parse?: (rawValue: string) => T
-  serialize?: (value: T) => string
+  parse?: (rawValue: string) => T;
+  serialize?: (value: T) => string;
 }
 
-const LOCAL_STORAGE_MIGRATION_KEY = 'useLocalStorageState:migrated:v2'
+const LOCAL_STORAGE_MIGRATION_KEY = "useLocalStorageState:migrated:v2";
 const LEGACY_PLAIN_STRING_KEYS: StorageKey[] = [
   STORAGE_KEYS.CURRENT_VIEW,
   STORAGE_KEYS.JIRA_BASE_URL,
@@ -39,105 +39,107 @@ const LEGACY_PLAIN_STRING_KEYS: StorageKey[] = [
   STORAGE_KEYS.OPEN_REMINDER_TIME,
   STORAGE_KEYS.CLOSE_REMINDER_TIME,
   STORAGE_KEYS.LAST_OPEN_REMINDER_DATE,
-  STORAGE_KEYS.LAST_CLOSE_REMINDER_DATE
-]
+  STORAGE_KEYS.LAST_CLOSE_REMINDER_DATE,
+];
 
-let hasRunLocalStorageMigration = false
+let hasRunLocalStorageMigration = false;
 
 const migrateLegacyPlainStringSettings = (): void => {
-  if (hasRunLocalStorageMigration) return
-  hasRunLocalStorageMigration = true
+  if (hasRunLocalStorageMigration) return;
+  hasRunLocalStorageMigration = true;
 
   try {
-    if (localStorage.getItem(LOCAL_STORAGE_MIGRATION_KEY) === '1') {
-      return
+    if (localStorage.getItem(LOCAL_STORAGE_MIGRATION_KEY) === "1") {
+      return;
     }
 
     LEGACY_PLAIN_STRING_KEYS.forEach((key) => {
-      const storedValue = localStorage.getItem(key)
-      if (storedValue === null) return
+      const storedValue = localStorage.getItem(key);
+      if (storedValue === null) return;
 
       try {
-        JSON.parse(storedValue)
+        JSON.parse(storedValue);
       } catch {
-        localStorage.setItem(key, JSON.stringify(storedValue))
+        localStorage.setItem(key, JSON.stringify(storedValue));
       }
-    })
+    });
 
-    localStorage.setItem(LOCAL_STORAGE_MIGRATION_KEY, '1')
+    localStorage.setItem(LOCAL_STORAGE_MIGRATION_KEY, "1");
   } catch (error) {
-    console.warn('Failed localStorage legacy string migration', error)
+    console.warn("Failed localStorage legacy string migration", error);
   }
-}
+};
 
-const defaultParse = <T,>(rawValue: string): T => {
+const defaultParse = <T>(rawValue: string): T => {
   try {
-    return JSON.parse(rawValue) as T
+    return JSON.parse(rawValue) as T;
   } catch (error) {
-    const trimmed = rawValue.trim()
+    const trimmed = rawValue.trim();
     const startsLikeJson =
-      trimmed.startsWith('{') ||
-      trimmed.startsWith('[') ||
+      trimmed.startsWith("{") ||
+      trimmed.startsWith("[") ||
       trimmed.startsWith('"') ||
-      trimmed === 'true' ||
-      trimmed === 'false' ||
-      trimmed === 'null' ||
-      /^-?\d/.test(trimmed)
+      trimmed === "true" ||
+      trimmed === "false" ||
+      trimmed === "null" ||
+      /^-?\d/.test(trimmed);
 
     if (startsLikeJson) {
-      throw error
+      throw error;
     }
 
-    return rawValue as T
+    return rawValue as T;
   }
-}
+};
 
-const defaultSerialize = <T,>(value: T): string => {
-  return JSON.stringify(value)
-}
+const defaultSerialize = <T>(value: T): string => {
+  return JSON.stringify(value);
+};
 
 function useLocalStorageState<T>(
   key: StorageKey,
   initialValue: T,
-  options?: LocalStorageStateOptions<T>
+  options?: LocalStorageStateOptions<T>,
 ): [T, Dispatch<SetStateAction<T>>] {
-  const parse = options?.parse ?? defaultParse<T>
-  const serialize = options?.serialize ?? defaultSerialize<T>
+  const parse = options?.parse ?? defaultParse<T>;
+  const serialize = options?.serialize ?? defaultSerialize<T>;
 
   const [state, setState] = useState<T>(() => {
-    migrateLegacyPlainStringSettings()
+    migrateLegacyPlainStringSettings();
 
-    const storedValue = localStorage.getItem(key)
+    const storedValue = localStorage.getItem(key);
     if (storedValue === null) {
-      return initialValue
+      return initialValue;
     }
 
     try {
-      return parse(storedValue)
+      return parse(storedValue);
     } catch (error) {
-      console.warn(`Failed to parse localStorage value for key "${key}"`, error)
-      notifyStorageParseFailure(key)
-      return initialValue
+      console.warn(`Failed to parse localStorage value for key "${key}"`, error);
+      notifyStorageParseFailure(key);
+      return initialValue;
     }
-  })
+  });
 
-  const setStoredState: Dispatch<SetStateAction<T>> = useCallback((nextState) => {
-    setState((prevState) => {
-      const resolvedState = typeof nextState === 'function'
-        ? (nextState as (prev: T) => T)(prevState)
-        : nextState
+  const setStoredState: Dispatch<SetStateAction<T>> = useCallback(
+    (nextState) => {
+      setState((prevState) => {
+        const resolvedState =
+          typeof nextState === "function" ? (nextState as (prev: T) => T)(prevState) : nextState;
 
-      try {
-        localStorage.setItem(key, serialize(resolvedState))
-      } catch (error) {
-        console.error(`Failed to write localStorage value for key "${key}"`, error)
-      }
+        try {
+          localStorage.setItem(key, serialize(resolvedState));
+        } catch (error) {
+          console.error(`Failed to write localStorage value for key "${key}"`, error);
+        }
 
-      return resolvedState
-    })
-  }, [key, serialize])
+        return resolvedState;
+      });
+    },
+    [key, serialize],
+  );
 
-  return [state, setStoredState]
+  return [state, setStoredState];
 }
 
-export default useLocalStorageState
+export default useLocalStorageState;

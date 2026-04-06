@@ -1,6 +1,6 @@
 # ✅ Untracked Entry
 
-## Allow for empty ticket #
+## Allow for empty ticket
 
 Sometimes I don't have a ticket created but I do have a client, let's at least show the client and count it's time in daily summary
 

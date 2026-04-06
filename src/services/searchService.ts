@@ -1,5 +1,5 @@
-import { getAllEntries } from './timeEntryService';
-import type { TimeEntry } from './types';
+import { getAllEntries } from "./timeEntryService";
+import type { TimeEntry } from "./types";
 
 export interface SearchResult {
   date: string;
@@ -7,7 +7,7 @@ export interface SearchResult {
 }
 
 function formatDateForDisplay(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-');
+  const [year, month, day] = dateStr.split("-");
   return `${month}/${day}/${year}`;
 }
 
@@ -17,7 +17,7 @@ function normalizeSearchTerm(term: string): string {
 
 function matchesSearchTerm(entry: TimeEntry, date: string, searchTerm: string): boolean {
   const normalizedTerm = normalizeSearchTerm(searchTerm);
-  
+
   if (!normalizedTerm) return false;
 
   const formattedDate = formatDateForDisplay(date);
@@ -36,9 +36,7 @@ function matchesSearchTerm(entry: TimeEntry, date: string, searchTerm: string): 
     entry.description,
   ].filter(Boolean);
 
-  return searchableFields.some(field => 
-    normalizeSearchTerm(field).includes(normalizedTerm)
-  );
+  return searchableFields.some((field) => normalizeSearchTerm(field).includes(normalizedTerm));
 }
 
 export async function searchEntries(searchTerm: string): Promise<SearchResult[]> {
@@ -67,7 +65,7 @@ export async function searchEntries(searchTerm: string): Promise<SearchResult[]>
 
     return results;
   } catch (error) {
-    console.error('Search failed:', error);
+    console.error("Search failed:", error);
     return [];
   }
 }

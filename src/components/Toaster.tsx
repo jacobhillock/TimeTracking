@@ -1,13 +1,13 @@
-import { useEffect } from 'react'
-import { Toast } from '@base-ui-components/react/toast'
-import { markToastSystemReady, toastManager } from '../services/toastService'
+import { useEffect } from "react";
+import { Toast } from "@base-ui-components/react/toast";
+import { markToastSystemReady, toastManager } from "../services/toastService";
 
 function ToastList() {
-  const { toasts } = Toast.useToastManager()
+  const { toasts } = Toast.useToastManager();
 
   useEffect(() => {
-    markToastSystemReady()
-  }, [])
+    markToastSystemReady();
+  }, []);
 
   return (
     <>
@@ -15,7 +15,7 @@ function ToastList() {
         <Toast.Root
           key={toastItem.id}
           toast={toastItem}
-          className={`app-toast ${toastItem.type === 'error' ? 'app-toast-error' : ''}`}
+          className={`app-toast ${toastItem.type === "error" ? "app-toast-error" : ""}`}
         >
           <Toast.Title className="app-toast-title" />
           <Toast.Description className="app-toast-description" />
@@ -25,7 +25,7 @@ function ToastList() {
         </Toast.Root>
       ))}
     </>
-  )
+  );
 }
 
 function Toaster() {
@@ -37,7 +37,7 @@ function Toaster() {
         </Toast.Viewport>
       </Toast.Portal>
     </Toast.Provider>
-  )
+  );
 }
 
-export default Toaster
+export default Toaster;

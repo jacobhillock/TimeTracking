@@ -1,120 +1,143 @@
-import { lazy, Suspense, useState, useEffect, useRef } from 'react'
-import type { CSSProperties, RefObject } from 'react'
-import { migrateFromLocalStorage } from './services/db'
-import { getEntriesForDay, getEntriesForDays, setEntriesForDay, moveEntry, findOverlappingEntries } from './services/timeEntryService'
-import { getAllTodos, addTodo, toggleTodoCompletion, deleteTodo, updateTodo } from './services/todoService'
-import type { TimeEntry, Todo } from './services/types'
-import type { ClientColors, CollapsedSections, EditableTimeEntry, EntriesByDate, PinnedTicket, TicketOption, TicketOptionGroups, ViewMode } from './types/app'
-import useLocalStorageState, { STORAGE_KEYS } from './hooks/useLocalStorageState'
-import SearchModal from './SearchModal'
-import CollapsibleSection from './components/CollapsibleSection'
-import Toaster from './components/Toaster'
-import { notifyErrorToast } from './services/toastService'
-import { Checkbox } from '@base-ui-components/react/checkbox'
-import { Input } from '@base-ui-components/react/input'
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
+import type { CSSProperties, RefObject } from "react";
+import { migrateFromLocalStorage } from "./services/db";
+import {
+  getEntriesForDay,
+  getEntriesForDays,
+  setEntriesForDay,
+  moveEntry,
+  findOverlappingEntries,
+} from "./services/timeEntryService";
+import {
+  getAllTodos,
+  addTodo,
+  toggleTodoCompletion,
+  deleteTodo,
+  updateTodo,
+} from "./services/todoService";
+import type { TimeEntry, Todo } from "./services/types";
+import type {
+  ClientColors,
+  CollapsedSections,
+  EditableTimeEntry,
+  EntriesByDate,
+  PinnedTicket,
+  TicketOption,
+  TicketOptionGroups,
+  ViewMode,
+} from "./types/app";
+import useLocalStorageState, { STORAGE_KEYS } from "./hooks/useLocalStorageState";
+import SearchModal from "./SearchModal";
+import CollapsibleSection from "./components/CollapsibleSection";
+import Toaster from "./components/Toaster";
+import { notifyErrorToast } from "./services/toastService";
+import { Checkbox } from "@base-ui-components/react/checkbox";
+import { Input } from "@base-ui-components/react/input";
 
-const CalendarView = lazy(() => import('./components/CalendarView'))
-const TaskView = lazy(() => import('./components/TaskView'))
+const CalendarView = lazy(() => import("./components/CalendarView"));
+const TaskView = lazy(() => import("./components/TaskView"));
 
 interface SummaryItem {
-  key: string
-  client: string
-  ticket: string
-  minutes: number
-  descriptions: string[]
-  allDisabled: boolean
-  someDisabled: boolean
-  entryIds: number[]
-  isUntracked: boolean
-  hours: string
-  isIndeterminate: boolean
+  key: string;
+  client: string;
+  ticket: string;
+  minutes: number;
+  descriptions: string[];
+  allDisabled: boolean;
+  someDisabled: boolean;
+  entryIds: number[];
+  isUntracked: boolean;
+  hours: string;
+  isIndeterminate: boolean;
 }
 
 interface SummaryAccumulator {
-  client: string
-  ticket: string
-  minutes: number
-  descriptions: string[]
-  allDisabled: boolean
-  someDisabled: boolean
-  entryIds: number[]
-  isUntracked: boolean
+  client: string;
+  ticket: string;
+  minutes: number;
+  descriptions: string[];
+  allDisabled: boolean;
+  someDisabled: boolean;
+  entryIds: number[];
+  isUntracked: boolean;
 }
 
 interface OverlapConfirmState {
-  entry: TimeEntry
-  fromDateKey: string
-  toDateKey: string
+  entry: TimeEntry;
+  fromDateKey: string;
+  toDateKey: string;
 }
 
 interface TicketRecentStats {
-  client: string
-  ticket: string
-  lastLoggedDate?: string
+  client: string;
+  ticket: string;
+  lastLoggedDate?: string;
 }
 
 interface TodoFormFieldsProps {
-  description: string
-  descriptionRef: RefObject<HTMLTextAreaElement | null>
-  onDescriptionChange: (value: string) => void
-  onDescriptionInput: (element: HTMLTextAreaElement) => void
-  clientValue: string
-  onClientChange: (value: string) => void
-  clients: string[]
-  ticketValue: string
-  onTicketChange: (value: string) => void
-  descriptionClassName?: string
-  descriptionStyle?: CSSProperties
-  rowStyle?: CSSProperties
-  clientSelectClassName?: string
-  clientSelectStyle?: CSSProperties
-  ticketInputClassName?: string
-  ticketInputStyle?: CSSProperties
+  description: string;
+  descriptionRef: RefObject<HTMLTextAreaElement | null>;
+  onDescriptionChange: (value: string) => void;
+  onDescriptionInput: (element: HTMLTextAreaElement) => void;
+  clientValue: string;
+  onClientChange: (value: string) => void;
+  clients: string[];
+  ticketValue: string;
+  onTicketChange: (value: string) => void;
+  descriptionClassName?: string;
+  descriptionStyle?: CSSProperties;
+  rowStyle?: CSSProperties;
+  clientSelectClassName?: string;
+  clientSelectStyle?: CSSProperties;
+  ticketInputClassName?: string;
+  ticketInputStyle?: CSSProperties;
 }
 
 function getContrastColor(hexColor: string): string {
-  const hex = hexColor.replace('#', '')
-  const r = parseInt(hex.substr(0, 2), 16)
-  const g = parseInt(hex.substr(2, 2), 16)
-  const b = parseInt(hex.substr(4, 2), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? '#000000' : '#ffffff'
+  const hex = hexColor.replace("#", "");
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? "#000000" : "#ffffff";
 }
 
 const parseCurrentView = (rawValue: string): ViewMode => {
-  return rawValue === 'task' || rawValue === 'calendar' ? rawValue : 'calendar'
-}
+  return rawValue === "task" || rawValue === "calendar" ? rawValue : "calendar";
+};
 
-const parseNumber = (fallback: number) => (rawValue: string): number => {
-  const parsed = Number(rawValue)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
+const parseNumber =
+  (fallback: number) =>
+  (rawValue: string): number => {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
 
 const formatLocalDate = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const parseTimeValue = (value: string): { hours: number; minutes: number } | null => {
-  const [hoursRaw, minutesRaw] = value.split(':')
-  const hours = Number(hoursRaw)
-  const minutes = Number(minutesRaw)
+  const [hoursRaw, minutesRaw] = value.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
 
   if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
-    return null
+    return null;
   }
   if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-    return null
+    return null;
   }
 
-  return { hours, minutes }
-}
+  return { hours, minutes };
+};
 
 const buildDateWithTime = (baseDate: Date, timeValue: string): Date | null => {
-  const parsed = parseTimeValue(timeValue)
-  if (!parsed) return null
+  const parsed = parseTimeValue(timeValue);
+  if (!parsed) return null;
 
   return new Date(
     baseDate.getFullYear(),
@@ -123,64 +146,68 @@ const buildDateWithTime = (baseDate: Date, timeValue: string): Date | null => {
     parsed.hours,
     parsed.minutes,
     0,
-    0
-  )
-}
+    0,
+  );
+};
 
-const isReminderDue = (timeValue: string | null, lastShownDate: string | null, now: Date): boolean => {
-  if (!timeValue) return false
+const isReminderDue = (
+  timeValue: string | null,
+  lastShownDate: string | null,
+  now: Date,
+): boolean => {
+  if (!timeValue) return false;
 
-  const todayKey = formatLocalDate(now)
-  if (lastShownDate === todayKey) return false
+  const todayKey = formatLocalDate(now);
+  if (lastShownDate === todayKey) return false;
 
-  const scheduled = buildDateWithTime(now, timeValue)
-  if (!scheduled) return false
+  const scheduled = buildDateWithTime(now, timeValue);
+  if (!scheduled) return false;
 
-  return now >= scheduled
-}
+  return now >= scheduled;
+};
 
 const toLocalNoon = (date: Date): Date => {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)
-}
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+};
 
 const dateKeyToLocalNoon = (value: string): Date | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null
+    return null;
   }
 
-  const [yearRaw, monthRaw, dayRaw] = value.split('-')
-  const year = Number(yearRaw)
-  const month = Number(monthRaw)
-  const day = Number(dayRaw)
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
 
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return null
+    return null;
   }
   if (month < 1 || month > 12) {
-    return null
+    return null;
   }
 
-  const maxDay = new Date(year, month, 0).getDate()
+  const maxDay = new Date(year, month, 0).getDate();
   if (day < 1 || day > maxDay) {
-    return null
+    return null;
   }
 
-  return new Date(year, month - 1, day, 12, 0, 0, 0)
-}
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+};
 
-const normalizeTicketPart = (value: string): string => value.trim()
+const normalizeTicketPart = (value: string): string => value.trim();
 
 const toTicketKey = (client: string, ticket: string): string =>
-  `${normalizeTicketPart(client)}-${normalizeTicketPart(ticket)}`
+  `${normalizeTicketPart(client)}-${normalizeTicketPart(ticket)}`;
 
 const toTicketKeyLookup = (client: string, ticket: string): string =>
-  toTicketKey(client, ticket).toLowerCase()
+  toTicketKey(client, ticket).toLowerCase();
 
 const autoResizeTextarea = (element: HTMLTextAreaElement | null): void => {
-  if (!element) return
-  element.style.height = 'auto'
-  element.style.height = `${element.scrollHeight}px`
-}
+  if (!element) return;
+  element.style.height = "auto";
+  element.style.height = `${element.scrollHeight}px`;
+};
 
 function TodoFormFields({
   description,
@@ -192,13 +219,13 @@ function TodoFormFields({
   clients,
   ticketValue,
   onTicketChange,
-  descriptionClassName = 'todo-textarea',
-  descriptionStyle = { marginBottom: '8px' },
-  rowStyle = { display: 'flex', gap: '8px', marginBottom: '8px' },
-  clientSelectClassName = 'todo-form-field',
+  descriptionClassName = "todo-textarea",
+  descriptionStyle = { marginBottom: "8px" },
+  rowStyle = { display: "flex", gap: "8px", marginBottom: "8px" },
+  clientSelectClassName = "todo-form-field",
   clientSelectStyle = { flex: 1 },
-  ticketInputClassName = 'todo-form-field',
-  ticketInputStyle = { flex: 1 }
+  ticketInputClassName = "todo-form-field",
+  ticketInputStyle = { flex: 1 },
 }: TodoFormFieldsProps) {
   return (
     <>
@@ -219,8 +246,10 @@ function TodoFormFields({
           style={clientSelectStyle}
         >
           <option value="">Optional client</option>
-          {clients.map(client => (
-            <option key={client} value={client}>{client}</option>
+          {clients.map((client) => (
+            <option key={client} value={client}>
+              {client}
+            </option>
           ))}
         </select>
         <Input
@@ -233,470 +262,539 @@ function TodoFormFields({
         />
       </div>
     </>
-  )
+  );
 }
 
 const getRecentDateKeys = (anchorDate: Date): string[] => {
-  const keys: string[] = []
+  const keys: string[] = [];
   for (let i = 0; i <= 7; i++) {
-    const date = new Date(anchorDate)
-    date.setDate(date.getDate() - i)
-    keys.push(formatLocalDate(date))
+    const date = new Date(anchorDate);
+    date.setDate(date.getDate() - i);
+    keys.push(formatLocalDate(date));
   }
-  return keys
-}
+  return keys;
+};
 
 const sortTicketOptions = (a: TicketOption, b: TicketOption): number => {
-  const dateA = a.sortByRecentDate || ''
-  const dateB = b.sortByRecentDate || ''
+  const dateA = a.sortByRecentDate || "";
+  const dateB = b.sortByRecentDate || "";
   if (dateA !== dateB) {
-    return dateB.localeCompare(dateA)
+    return dateB.localeCompare(dateA);
   }
-  return a.key.localeCompare(b.key)
-}
+  return a.key.localeCompare(b.key);
+};
 
-const DEFAULT_TAG_TYPES = ['Admin', 'Research', 'Development', 'Design']
+const DEFAULT_TAG_TYPES = ["Admin", "Research", "Development", "Design"];
 
-const normalizeTagPart = (value: string): string => value.trim()
+const normalizeTagPart = (value: string): string => value.trim();
 
 const normalizeTagList = (values: string[]): string[] => {
   const seen = new Set<string>();
   const normalized: string[] = [];
 
   values.forEach((value) => {
-    const tag = normalizeTagPart(value)
-    if (!tag) return
+    const tag = normalizeTagPart(value);
+    if (!tag) return;
 
-    const lookup = tag.toLowerCase()
-    if (seen.has(lookup)) return
+    const lookup = tag.toLowerCase();
+    if (seen.has(lookup)) return;
 
     seen.add(lookup);
     normalized.push(tag);
-  })
+  });
 
   return normalized;
-}
+};
 
 const parseTagTypes = (rawValue: string): string[] => {
-  return normalizeTagList(JSON.parse(rawValue) as string[])
-}
+  return normalizeTagList(JSON.parse(rawValue) as string[]);
+};
 
 const normalizeEntryTags = <T extends TimeEntry>(entry: T): T => {
   return {
     ...entry,
-    tags: normalizeTagList(entry.tags || [])
-  }
-}
+    tags: normalizeTagList(entry.tags || []),
+  };
+};
 
 function App() {
-  const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()))
-  const [currentView, setCurrentView] = useLocalStorageState<ViewMode>(STORAGE_KEYS.CURRENT_VIEW, 'calendar', {
-    parse: parseCurrentView
-  })
-  const [entries, setEntries] = useState<EntriesByDate>({})
-  const [isLoadingEntries, setIsLoadingEntries] = useState(true)
-  const [clients, setClients] = useLocalStorageState<string[]>(STORAGE_KEYS.CLIENTS, [])
-  const [clientColors, setClientColors] = useLocalStorageState<ClientColors>(STORAGE_KEYS.CLIENT_COLORS, {})
-  const [jiraBaseUrl, setJiraBaseUrl] = useLocalStorageState<string>(STORAGE_KEYS.JIRA_BASE_URL, '')
-  const [defaultStartTime, setDefaultStartTime] = useLocalStorageState<string>(STORAGE_KEYS.DEFAULT_START_TIME, '09:00')
-  const [calendarInterval, setCalendarInterval] = useLocalStorageState<number>(STORAGE_KEYS.CALENDAR_INTERVAL, 15, {
-    parse: parseNumber(15),
-    serialize: (value) => String(value)
-  })
-  const [calendarStartTime, setCalendarStartTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_START_TIME, '00:00')
-  const [calendarEndTime, setCalendarEndTime] = useLocalStorageState<string>(STORAGE_KEYS.CALENDAR_END_TIME, '23:59')
-  const [openReminderTime, setOpenReminderTime] = useLocalStorageState<string | null>(STORAGE_KEYS.OPEN_REMINDER_TIME, null)
-  const [closeReminderTime, setCloseReminderTime] = useLocalStorageState<string | null>(STORAGE_KEYS.CLOSE_REMINDER_TIME, null)
-  const [lastOpenReminderDate, setLastOpenReminderDate] = useLocalStorageState<string | null>(STORAGE_KEYS.LAST_OPEN_REMINDER_DATE, null)
-  const [lastCloseReminderDate, setLastCloseReminderDate] = useLocalStorageState<string | null>(STORAGE_KEYS.LAST_CLOSE_REMINDER_DATE, null)
-  const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null)
-  const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null)
-  const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null)
-  const [darkMode, setDarkMode] = useLocalStorageState<boolean>(STORAGE_KEYS.DARK_MODE, false)
-  const [sidebarVisible, setSidebarVisible] = useLocalStorageState<boolean>(STORAGE_KEYS.SIDEBAR_VISIBLE, true)
-  const [collapsedSections, setCollapsedSections] = useLocalStorageState<CollapsedSections>(STORAGE_KEYS.COLLAPSED_SECTIONS, {})
-  const [pinnedTickets, setPinnedTickets] = useLocalStorageState<PinnedTicket[]>(STORAGE_KEYS.PINNED_TICKETS, [])
+  const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()));
+  const [currentView, setCurrentView] = useLocalStorageState<ViewMode>(
+    STORAGE_KEYS.CURRENT_VIEW,
+    "calendar",
+    {
+      parse: parseCurrentView,
+    },
+  );
+  const [entries, setEntries] = useState<EntriesByDate>({});
+  const [isLoadingEntries, setIsLoadingEntries] = useState(true);
+  const [clients, setClients] = useLocalStorageState<string[]>(STORAGE_KEYS.CLIENTS, []);
+  const [clientColors, setClientColors] = useLocalStorageState<ClientColors>(
+    STORAGE_KEYS.CLIENT_COLORS,
+    {},
+  );
+  const [jiraBaseUrl, setJiraBaseUrl] = useLocalStorageState<string>(
+    STORAGE_KEYS.JIRA_BASE_URL,
+    "",
+  );
+  const [defaultStartTime, setDefaultStartTime] = useLocalStorageState<string>(
+    STORAGE_KEYS.DEFAULT_START_TIME,
+    "09:00",
+  );
+  const [calendarInterval, setCalendarInterval] = useLocalStorageState<number>(
+    STORAGE_KEYS.CALENDAR_INTERVAL,
+    15,
+    {
+      parse: parseNumber(15),
+      serialize: (value) => String(value),
+    },
+  );
+  const [calendarStartTime, setCalendarStartTime] = useLocalStorageState<string>(
+    STORAGE_KEYS.CALENDAR_START_TIME,
+    "00:00",
+  );
+  const [calendarEndTime, setCalendarEndTime] = useLocalStorageState<string>(
+    STORAGE_KEYS.CALENDAR_END_TIME,
+    "23:59",
+  );
+  const [openReminderTime, setOpenReminderTime] = useLocalStorageState<string | null>(
+    STORAGE_KEYS.OPEN_REMINDER_TIME,
+    null,
+  );
+  const [closeReminderTime, setCloseReminderTime] = useLocalStorageState<string | null>(
+    STORAGE_KEYS.CLOSE_REMINDER_TIME,
+    null,
+  );
+  const [lastOpenReminderDate, setLastOpenReminderDate] = useLocalStorageState<string | null>(
+    STORAGE_KEYS.LAST_OPEN_REMINDER_DATE,
+    null,
+  );
+  const [lastCloseReminderDate, setLastCloseReminderDate] = useLocalStorageState<string | null>(
+    STORAGE_KEYS.LAST_CLOSE_REMINDER_DATE,
+    null,
+  );
+  const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null);
+  const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null);
+  const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null);
+  const [darkMode, setDarkMode] = useLocalStorageState<boolean>(STORAGE_KEYS.DARK_MODE, false);
+  const [sidebarVisible, setSidebarVisible] = useLocalStorageState<boolean>(
+    STORAGE_KEYS.SIDEBAR_VISIBLE,
+    true,
+  );
+  const [collapsedSections, setCollapsedSections] = useLocalStorageState<CollapsedSections>(
+    STORAGE_KEYS.COLLAPSED_SECTIONS,
+    {},
+  );
+  const [pinnedTickets, setPinnedTickets] = useLocalStorageState<PinnedTicket[]>(
+    STORAGE_KEYS.PINNED_TICKETS,
+    [],
+  );
   const [tagTypes, setTagTypes] = useLocalStorageState<string[]>(
     STORAGE_KEYS.TAG_TYPES,
     DEFAULT_TAG_TYPES,
-    { parse: parseTagTypes }
-  )
-  const [newClient, setNewClient] = useState('')
-  const [newTagType, setNewTagType] = useState('')
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
-  const [now, setNow] = useState<Date>(() => new Date())
-  const [activeReminder, setActiveReminder] = useState<'open' | 'close' | null>(null)
-  const [clickedSummary, setClickedSummary] = useState<SummaryItem | null>(null)
-  const [showLogPrompt, setShowLogPrompt] = useState(false)
-  const [todos, setTodos] = useState<Todo[]>([])
-  const [newTodoDescription, setNewTodoDescription] = useState('')
-  const [newTodoClient, setNewTodoClient] = useState('')
-  const [newTodoTicket, setNewTodoTicket] = useState('')
-  const [editingTodoId, setEditingTodoId] = useState<number | null>(null)
-  const [editTodoDescription, setEditTodoDescription] = useState('')
-  const [editTodoClient, setEditTodoClient] = useState('')
-  const [editTodoTicket, setEditTodoTicket] = useState('')
-  const newTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null)
-  const editTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null)
-  const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({})
-  const headerRef = useRef<HTMLDivElement | null>(null)
-  const [headerHeight, setHeaderHeight] = useState(0)
-  const nowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const nowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const openReminderTimeRef = useRef<string | null>(openReminderTime)
-  const closeReminderTimeRef = useRef<string | null>(closeReminderTime)
-  const lastOpenReminderDateRef = useRef<string | null>(lastOpenReminderDate)
-  const lastCloseReminderDateRef = useRef<string | null>(lastCloseReminderDate)
-  const activeReminderRef = useRef<'open' | 'close' | null>(null)
-  const windowWasBlurred = useRef<boolean>(false)
-  const friendlyNameTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const loadedRecentDateKeysRef = useRef<Set<string>>(new Set())
+    { parse: parseTagTypes },
+  );
+  const [newClient, setNewClient] = useState("");
+  const [newTagType, setNewTagType] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [now, setNow] = useState<Date>(() => new Date());
+  const [activeReminder, setActiveReminder] = useState<"open" | "close" | null>(null);
+  const [clickedSummary, setClickedSummary] = useState<SummaryItem | null>(null);
+  const [showLogPrompt, setShowLogPrompt] = useState(false);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [newTodoDescription, setNewTodoDescription] = useState("");
+  const [newTodoClient, setNewTodoClient] = useState("");
+  const [newTodoTicket, setNewTodoTicket] = useState("");
+  const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
+  const [editTodoDescription, setEditTodoDescription] = useState("");
+  const [editTodoClient, setEditTodoClient] = useState("");
+  const [editTodoTicket, setEditTodoTicket] = useState("");
+  const newTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const editTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({});
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const nowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const openReminderTimeRef = useRef<string | null>(openReminderTime);
+  const closeReminderTimeRef = useRef<string | null>(closeReminderTime);
+  const lastOpenReminderDateRef = useRef<string | null>(lastOpenReminderDate);
+  const lastCloseReminderDateRef = useRef<string | null>(lastCloseReminderDate);
+  const activeReminderRef = useRef<"open" | "close" | null>(null);
+  const windowWasBlurred = useRef<boolean>(false);
+  const friendlyNameTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const loadedRecentDateKeysRef = useRef<Set<string>>(new Set());
 
-  openReminderTimeRef.current = openReminderTime
-  closeReminderTimeRef.current = closeReminderTime
-  lastOpenReminderDateRef.current = lastOpenReminderDate
-  lastCloseReminderDateRef.current = lastCloseReminderDate
-  activeReminderRef.current = activeReminder
+  openReminderTimeRef.current = openReminderTime;
+  closeReminderTimeRef.current = closeReminderTime;
+  lastOpenReminderDateRef.current = lastOpenReminderDate;
+  lastCloseReminderDateRef.current = lastCloseReminderDate;
+  activeReminderRef.current = activeReminder;
 
-  const dateKey = formatLocalDate(currentDate)
+  const dateKey = formatLocalDate(currentDate);
 
   useEffect(() => {
     const handleBlur = () => {
-      windowWasBlurred.current = true
-    }
+      windowWasBlurred.current = true;
+    };
 
     const handleFocus = () => {
-      if (windowWasBlurred.current && clickedSummary && !clickedSummary.allDisabled && !clickedSummary.isUntracked) {
-        setShowLogPrompt(true)
+      if (
+        windowWasBlurred.current &&
+        clickedSummary &&
+        !clickedSummary.allDisabled &&
+        !clickedSummary.isUntracked
+      ) {
+        setShowLogPrompt(true);
       }
-      windowWasBlurred.current = false
-    }
+      windowWasBlurred.current = false;
+    };
 
-    window.addEventListener('blur', handleBlur)
-    window.addEventListener('focus', handleFocus)
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('focus', handleFocus)
-    }
-  }, [clickedSummary])
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [clickedSummary]);
 
   useEffect(() => {
     async function initializeDB() {
       try {
-        await migrateFromLocalStorage()
-        console.log('Database initialized and migration complete')
+        await migrateFromLocalStorage();
+        console.log("Database initialized and migration complete");
       } catch (error) {
-        console.error('Failed to initialize database:', error)
-        notifyErrorToast('Initialization failed', 'Failed to initialize database. Attempting local fallback.')
-        const saved = localStorage.getItem('timeEntries')
+        console.error("Failed to initialize database:", error);
+        notifyErrorToast(
+          "Initialization failed",
+          "Failed to initialize database. Attempting local fallback.",
+        );
+        const saved = localStorage.getItem("timeEntries");
         if (saved) {
           try {
-            const parsed = JSON.parse(saved)
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              setEntries(parsed as EntriesByDate)
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              setEntries(parsed as EntriesByDate);
             }
           } catch (parseError) {
-            console.warn('Failed to parse legacy localStorage timeEntries', parseError)
-            notifyErrorToast('Recovery failed', 'Could not parse legacy time entries from local storage.')
+            console.warn("Failed to parse legacy localStorage timeEntries", parseError);
+            notifyErrorToast(
+              "Recovery failed",
+              "Could not parse legacy time entries from local storage.",
+            );
           }
         }
       } finally {
-        setIsLoadingEntries(false)
+        setIsLoadingEntries(false);
       }
     }
 
-    initializeDB()
-  }, [])
+    void initializeDB();
+  }, []);
 
   useEffect(() => {
     async function loadCurrentDayEntries() {
-      if (isLoadingEntries) return
+      if (isLoadingEntries) return;
 
-      if (currentView === 'task') {
+      if (currentView === "task") {
         // Task view: load only current day
         if (!entries[dateKey]) {
-          const dayEntries = await getEntriesForDay(dateKey)
+          const dayEntries = await getEntriesForDay(dateKey);
           if (dayEntries.length > 0) {
-            setEntries(prev => ({ ...prev, [dateKey]: dayEntries }))
+            setEntries((prev) => ({ ...prev, [dateKey]: dayEntries }));
           }
         }
-      } else if (currentView === 'calendar') {
+      } else if (currentView === "calendar") {
         // Calendar view: load business week
-        const d = new Date(currentDate)
-        const day = d.getDay()
-        const diff = d.getDate() - day + (day === 0 ? -2 : 1)
-        const monday = new Date(d.setDate(diff))
-        const weekDates = []
+        const d = new Date(currentDate);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -2 : 1);
+        const monday = new Date(d.setDate(diff));
+        const weekDates = [];
 
         for (let i = 0; i < 5; i++) {
-          const date = new Date(monday)
-          date.setDate(date.getDate() + i)
-          weekDates.push(formatLocalDate(date))
+          const date = new Date(monday);
+          date.setDate(date.getDate() + i);
+          weekDates.push(formatLocalDate(date));
         }
 
         // Only fetch dates we don't have yet
-        const datesToFetch = weekDates.filter(date => !entries[date])
+        const datesToFetch = weekDates.filter((date) => !entries[date]);
 
         if (datesToFetch.length > 0) {
-          const weekEntries = await getEntriesForDays(datesToFetch)
+          const weekEntries = await getEntriesForDays(datesToFetch);
           if (Object.keys(weekEntries).length > 0) {
-            setEntries(prev => ({ ...prev, ...weekEntries }))
+            setEntries((prev) => ({ ...prev, ...weekEntries }));
           }
         }
       }
     }
 
-    loadCurrentDayEntries()
-  }, [currentDate, currentView, isLoadingEntries, dateKey])
+    void loadCurrentDayEntries();
+  }, [currentDate, currentView, isLoadingEntries, dateKey]);
 
   useEffect(() => {
-    document.body.classList.toggle('dark-mode', darkMode)
-  }, [darkMode])
+    document.body.classList.toggle("dark-mode", darkMode);
+  }, [darkMode]);
 
   useEffect(() => {
     const clearNowTimers = (): void => {
       if (nowTimeoutRef.current) {
-        clearTimeout(nowTimeoutRef.current)
-        nowTimeoutRef.current = null
+        clearTimeout(nowTimeoutRef.current);
+        nowTimeoutRef.current = null;
       }
       if (nowIntervalRef.current) {
-        clearInterval(nowIntervalRef.current)
-        nowIntervalRef.current = null
+        clearInterval(nowIntervalRef.current);
+        nowIntervalRef.current = null;
       }
-    }
+    };
 
     const syncNow = (): void => {
-      const nextNow = new Date()
-      setNow(nextNow)
-      evaluateRemindersNow(nextNow)
-    }
-    const isActive = (): boolean => document.visibilityState === 'visible'
+      const nextNow = new Date();
+      setNow(nextNow);
+      evaluateRemindersNow(nextNow);
+    };
+    const isActive = (): boolean => document.visibilityState === "visible";
 
     const scheduleNowUpdates = (): void => {
-      clearNowTimers()
+      clearNowTimers();
 
       if (!isActive()) {
-        return
+        return;
       }
 
-      syncNow()
-      const timestamp = new Date()
-      const delayToNextMinute = Math.max(0, (60 - timestamp.getSeconds()) * 1000 - timestamp.getMilliseconds())
+      syncNow();
+      const timestamp = new Date();
+      const delayToNextMinute = Math.max(
+        0,
+        (60 - timestamp.getSeconds()) * 1000 - timestamp.getMilliseconds(),
+      );
 
       nowTimeoutRef.current = setTimeout(() => {
-        syncNow()
-        nowIntervalRef.current = setInterval(syncNow, 60_000)
-      }, delayToNextMinute)
-    }
+        syncNow();
+        nowIntervalRef.current = setInterval(syncNow, 60_000);
+      }, delayToNextMinute);
+    };
 
     const handleActivityChange = (): void => {
       if (isActive()) {
-        scheduleNowUpdates()
-        return
+        scheduleNowUpdates();
+        return;
       }
 
-      clearNowTimers()
-    }
+      clearNowTimers();
+    };
 
-    scheduleNowUpdates()
-    document.addEventListener('visibilitychange', handleActivityChange)
+    scheduleNowUpdates();
+    document.addEventListener("visibilitychange", handleActivityChange);
 
     return () => {
-      clearNowTimers()
-      document.removeEventListener('visibilitychange', handleActivityChange)
-    }
-  }, [])
+      clearNowTimers();
+      document.removeEventListener("visibilitychange", handleActivityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const loadTodos = async () => {
-      const filteredTodos = await getAllTodos(dateKey)
-      setTodos(filteredTodos)
-    }
-    loadTodos()
-  }, [dateKey])
+      const filteredTodos = await getAllTodos(dateKey);
+      setTodos(filteredTodos);
+    };
+    void loadTodos();
+  }, [dateKey]);
 
   useEffect(() => {
-    autoResizeTextarea(newTodoDescriptionRef.current)
-  }, [newTodoDescription])
+    autoResizeTextarea(newTodoDescriptionRef.current);
+  }, [newTodoDescription]);
 
   useEffect(() => {
-    autoResizeTextarea(editTodoDescriptionRef.current)
-  }, [editTodoDescription, editingTodoId])
+    autoResizeTextarea(editTodoDescriptionRef.current);
+  }, [editTodoDescription, editingTodoId]);
 
   useEffect(() => {
-    if (isLoadingEntries) return
+    if (isLoadingEntries) return;
 
-    const recentDateKeys = getRecentDateKeys(currentDate)
-    const missingDateKeys = recentDateKeys.filter((key) => !loadedRecentDateKeysRef.current.has(key))
+    const recentDateKeys = getRecentDateKeys(currentDate);
+    const missingDateKeys = recentDateKeys.filter(
+      (key) => !loadedRecentDateKeysRef.current.has(key),
+    );
 
-    if (missingDateKeys.length === 0) return
+    if (missingDateKeys.length === 0) return;
 
-    missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.add(key))
+    missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.add(key));
 
-    let cancelled = false
+    let cancelled = false;
     const loadRecentEntries = async () => {
       try {
-        const recentEntries = await getEntriesForDays(missingDateKeys)
-        if (cancelled) return
+        const recentEntries = await getEntriesForDays(missingDateKeys);
+        if (cancelled) return;
 
         setEntries((prev) => {
-          const next = { ...prev }
+          const next = { ...prev };
           missingDateKeys.forEach((key) => {
             if (next[key] === undefined) {
-              next[key] = recentEntries[key] || []
+              next[key] = recentEntries[key] || [];
             }
-          })
-          return next
-        })
+          });
+          return next;
+        });
       } catch (error) {
-        missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.delete(key))
-        console.error('Failed to load recent entries:', error)
+        missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.delete(key));
+        console.error("Failed to load recent entries:", error);
       }
-    }
+    };
 
-    void loadRecentEntries()
+    void loadRecentEntries();
 
     return () => {
-      cancelled = true
-    }
-  }, [currentDate, isLoadingEntries])
+      cancelled = true;
+    };
+  }, [currentDate, isLoadingEntries]);
 
   useEffect(() => {
     setFriendlyNameDrafts((prev) => {
-      const next: Record<string, string> = {}
+      const next: Record<string, string> = {};
       pinnedTickets.forEach((ticket) => {
-        next[ticket.key] = prev[ticket.key] ?? ticket.friendlyName ?? ''
-      })
-      return next
-    })
-  }, [pinnedTickets])
+        next[ticket.key] = prev[ticket.key] ?? ticket.friendlyName ?? "";
+      });
+      return next;
+    });
+  }, [pinnedTickets]);
 
   useEffect(() => {
     return () => {
       Object.values(friendlyNameTimersRef.current).forEach((timer) => {
-        clearTimeout(timer)
-      })
-      friendlyNameTimersRef.current = {}
-    }
-  }, [])
+        clearTimeout(timer);
+      });
+      friendlyNameTimersRef.current = {};
+    };
+  }, []);
 
-  const updateDayEntries = (newEntries: TimeEntry[], specificDateKey: string | null = null): void => {
-    const key = specificDateKey || dateKey
-    const normalizedEntries = newEntries.map(normalizeEntryTags)
-    setEntries(prev => ({ ...prev, [key]: normalizedEntries }))
+  const updateDayEntries = (
+    newEntries: TimeEntry[],
+    specificDateKey: string | null = null,
+  ): void => {
+    const key = specificDateKey || dateKey;
+    const normalizedEntries = newEntries.map(normalizeEntryTags);
+    setEntries((prev) => ({ ...prev, [key]: normalizedEntries }));
 
-    setEntriesForDay(key, normalizedEntries).catch(error => {
-      console.error('Failed to sync entries to IndexedDB:', error)
-    })
-  }
+    setEntriesForDay(key, normalizedEntries).catch((error) => {
+      console.error("Failed to sync entries to IndexedDB:", error);
+    });
+  };
 
   const addCalendarEntry = (specificDateKey: string, newEntry: EditableTimeEntry): void => {
-    const dayEntries = entries[specificDateKey] || []
-    updateDayEntries([...dayEntries, normalizeEntryTags(newEntry)], specificDateKey)
-  }
+    const dayEntries = entries[specificDateKey] || [];
+    updateDayEntries([...dayEntries, normalizeEntryTags(newEntry)], specificDateKey);
+  };
 
   const deleteCalendarEntry = (specificDateKey: string, entryId: number): void => {
-    const dayEntries = entries[specificDateKey] || []
-    updateDayEntries(dayEntries.filter(e => e.id !== entryId), specificDateKey)
-  }
+    const dayEntries = entries[specificDateKey] || [];
+    updateDayEntries(
+      dayEntries.filter((e) => e.id !== entryId),
+      specificDateKey,
+    );
+  };
 
   const executeMoveAndClose = async () => {
-    if (!showOverlapConfirm) return
-    const { entry, fromDateKey, toDateKey } = showOverlapConfirm
+    if (!showOverlapConfirm) return;
+    const { entry, fromDateKey, toDateKey } = showOverlapConfirm;
     try {
-      await moveEntry(fromDateKey, toDateKey, entry)
+      await moveEntry(fromDateKey, toDateKey, entry);
       setEntries((prev) => ({
         ...prev,
         [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== entry.id),
-        [toDateKey]: [...(prev[toDateKey] || []), entry]
-      }))
-      setShowOverlapConfirm(null)
-      setEditingEntry(null)
-      setEditingEntryDateKey(null)
+        [toDateKey]: [...(prev[toDateKey] || []), entry],
+      }));
+      setShowOverlapConfirm(null);
+      setEditingEntry(null);
+      setEditingEntryDateKey(null);
     } catch (error) {
-      console.error('Failed to move entry after overlap confirmation:', error)
-      notifyErrorToast('Move failed', 'Could not move the entry. Please try again.')
+      console.error("Failed to move entry after overlap confirmation:", error);
+      notifyErrorToast("Move failed", "Could not move the entry. Please try again.");
     }
-  }
+  };
 
-  const updateCalendarEntry = async (updatedEntry: TimeEntry, newDateKey?: string): Promise<{ shouldClose: boolean }> => {
-    const updatedEntryForSave = normalizeEntryTags(updatedEntry)
-    let fromDateKey: string | null = null
+  const updateCalendarEntry = async (
+    updatedEntry: TimeEntry,
+    newDateKey?: string,
+  ): Promise<{ shouldClose: boolean }> => {
+    const updatedEntryForSave = normalizeEntryTags(updatedEntry);
+    let fromDateKey: string | null = null;
     for (const key in entries) {
       if (entries[key]?.some((e) => e.id === updatedEntry.id)) {
-        fromDateKey = key
-        break
+        fromDateKey = key;
+        break;
       }
     }
-    const targetDateKey = newDateKey ?? fromDateKey
+    const targetDateKey = newDateKey ?? fromDateKey;
 
     if (!fromDateKey || !targetDateKey) {
-      console.warn('Entry not found in entries')
-      return { shouldClose: true }
+      console.warn("Entry not found in entries");
+      return { shouldClose: true };
     }
 
     if (targetDateKey === fromDateKey) {
-      const dayEntries = entries[fromDateKey] || []
-      const index = dayEntries.findIndex((e) => e.id === updatedEntry.id)
+      const dayEntries = entries[fromDateKey] || [];
+      const index = dayEntries.findIndex((e) => e.id === updatedEntry.id);
       if (index !== -1) {
-        const updated = [...dayEntries]
-        updated[index] = updatedEntryForSave
-        updateDayEntries(updated, fromDateKey)
+        const updated = [...dayEntries];
+        updated[index] = updatedEntryForSave;
+        updateDayEntries(updated, fromDateKey);
       }
-      return { shouldClose: true }
+      return { shouldClose: true };
     }
 
-    const overlapping = await findOverlappingEntries(targetDateKey, updatedEntryForSave)
+    const overlapping = await findOverlappingEntries(targetDateKey, updatedEntryForSave);
     if (overlapping.length > 0) {
-      setShowOverlapConfirm({ entry: updatedEntryForSave, fromDateKey, toDateKey: targetDateKey })
-      return { shouldClose: false }
+      setShowOverlapConfirm({ entry: updatedEntryForSave, fromDateKey, toDateKey: targetDateKey });
+      return { shouldClose: false };
     }
 
     try {
-      await moveEntry(fromDateKey, targetDateKey, updatedEntryForSave)
+      await moveEntry(fromDateKey, targetDateKey, updatedEntryForSave);
       setEntries((prev) => ({
         ...prev,
         [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id),
-        [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntryForSave]
-      }))
-      return { shouldClose: true }
+        [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntryForSave],
+      }));
+      return { shouldClose: true };
     } catch (error) {
-      console.error('Failed to move entry:', error)
-      notifyErrorToast('Move failed', 'Could not move the entry. Please try again.')
-      return { shouldClose: false }
+      console.error("Failed to move entry:", error);
+      notifyErrorToast("Move failed", "Could not move the entry. Please try again.");
+      return { shouldClose: false };
     }
-  }
+  };
 
   const changeDate = (days: number): void => {
-    const newDate = new Date(currentDate)
-    newDate.setDate(newDate.getDate() + days)
-    setCurrentDate(newDate)
-  }
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + days);
+    setCurrentDate(newDate);
+  };
 
   const addClient = () => {
     if (newClient.trim() && !clients.includes(newClient.trim())) {
-      setClients([...clients, newClient.trim()])
-      setNewClient('')
+      setClients([...clients, newClient.trim()]);
+      setNewClient("");
     }
-  }
+  };
 
   const removeClient = (client: string): void => {
-    setClients(clients.filter(c => c !== client))
-  }
+    setClients(clients.filter((c) => c !== client));
+  };
 
   const addTagType = (): void => {
-    const nextTag = normalizeTagPart(newTagType)
-    if (!nextTag) return
+    const nextTag = normalizeTagPart(newTagType);
+    if (!nextTag) return;
 
-    setTagTypes((prev) => normalizeTagList([...prev, nextTag]))
-    setNewTagType('')
-  }
+    setTagTypes((prev) => normalizeTagList([...prev, nextTag]));
+    setNewTagType("");
+  };
 
   const removeTagType = (tag: string): void => {
-    const lookup = tag.toLowerCase()
-    setTagTypes((prev) => prev.filter((existingTag) => existingTag.toLowerCase() !== lookup))
-  }
+    const lookup = tag.toLowerCase();
+    setTagTypes((prev) => prev.filter((existingTag) => existingTag.toLowerCase() !== lookup));
+  };
 
   const handleAddTodo = async () => {
     if (newTodoDescription.trim()) {
@@ -704,92 +802,94 @@ function App() {
         newTodoDescription.trim(),
         newTodoClient.trim() || undefined,
         newTodoTicket.trim() || undefined,
-        dateKey
-      )
+        dateKey,
+      );
       if (newTodo) {
-        console.log('Todo added:', newTodo)
-        const filteredTodos = await getAllTodos(dateKey)
-        setTodos(filteredTodos)
-        setNewTodoDescription('')
-        setNewTodoClient('')
-        setNewTodoTicket('')
+        console.log("Todo added:", newTodo);
+        const filteredTodos = await getAllTodos(dateKey);
+        setTodos(filteredTodos);
+        setNewTodoDescription("");
+        setNewTodoClient("");
+        setNewTodoTicket("");
       }
     }
-  }
+  };
 
   const handleToggleTodo = async (id: number): Promise<void> => {
-    console.log('Toggling todo:', id)
-    const success = await toggleTodoCompletion(id)
-    console.log('Toggle result:', success)
+    console.log("Toggling todo:", id);
+    const success = await toggleTodoCompletion(id);
+    console.log("Toggle result:", success);
     if (success) {
-      const filteredTodos = await getAllTodos(dateKey)
-      console.log('Refetched todos:', filteredTodos)
-      setTodos(filteredTodos)
+      const filteredTodos = await getAllTodos(dateKey);
+      console.log("Refetched todos:", filteredTodos);
+      setTodos(filteredTodos);
     }
-  }
+  };
 
   const handleDeleteTodo = async (id: number): Promise<void> => {
-    console.log('Deleting todo:', id)
-    const success = await deleteTodo(id)
-    console.log('Delete result:', success)
+    console.log("Deleting todo:", id);
+    const success = await deleteTodo(id);
+    console.log("Delete result:", success);
     if (success) {
-      const filteredTodos = await getAllTodos(dateKey)
-      setTodos(filteredTodos)
+      const filteredTodos = await getAllTodos(dateKey);
+      setTodos(filteredTodos);
     }
-  }
+  };
 
   const handleStartEditTodo = (todo: Todo): void => {
-    setEditingTodoId(todo.id)
-    setEditTodoDescription(todo.description)
-    setEditTodoClient(todo.client || '')
-    setEditTodoTicket(todo.ticket || '')
-  }
+    setEditingTodoId(todo.id);
+    setEditTodoDescription(todo.description);
+    setEditTodoClient(todo.client || "");
+    setEditTodoTicket(todo.ticket || "");
+  };
 
   const handleSaveEditTodo = async () => {
-    if (editingTodoId === null) return
+    if (editingTodoId === null) return;
     if (editTodoDescription.trim()) {
       const success = await updateTodo(
         editingTodoId,
         editTodoDescription.trim(),
         editTodoClient.trim() || undefined,
-        editTodoTicket.trim() || undefined
-      )
+        editTodoTicket.trim() || undefined,
+      );
       if (success) {
-        const filteredTodos = await getAllTodos(dateKey)
-        setTodos(filteredTodos)
-        setEditingTodoId(null)
-        setEditTodoDescription('')
-        setEditTodoClient('')
-        setEditTodoTicket('')
+        const filteredTodos = await getAllTodos(dateKey);
+        setTodos(filteredTodos);
+        setEditingTodoId(null);
+        setEditTodoDescription("");
+        setEditTodoClient("");
+        setEditTodoTicket("");
       }
     }
-  }
+  };
 
   const handleCancelEditTodo = () => {
-    setEditingTodoId(null)
-    setEditTodoDescription('')
-    setEditTodoClient('')
-    setEditTodoTicket('')
-  }
+    setEditingTodoId(null);
+    setEditTodoDescription("");
+    setEditTodoClient("");
+    setEditTodoTicket("");
+  };
 
   const getSortedTodos = () => {
-    const uncompleted = todos.filter(t => !t.completed).sort((a, b) => b.id - a.id)
-    const completed = todos.filter(t => t.completed).sort((a, b) => b.id - a.id)
-    return [...uncompleted, ...completed]
-  }
+    const uncompleted = todos.filter((t) => !t.completed).sort((a, b) => b.id - a.id);
+    const completed = todos.filter((t) => t.completed).sort((a, b) => b.id - a.id);
+    return [...uncompleted, ...completed];
+  };
 
   const isTicketPinned = (client: string, ticket: string): boolean => {
-    const lookup = toTicketKeyLookup(client, ticket)
-    return pinnedTickets.some((pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup)
-  }
+    const lookup = toTicketKeyLookup(client, ticket);
+    return pinnedTickets.some(
+      (pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
+    );
+  };
 
   const pinTicket = (client: string, ticket: string): void => {
-    const trimmedClient = normalizeTicketPart(client)
-    const trimmedTicket = normalizeTicketPart(ticket)
-    if (!trimmedClient || !trimmedTicket) return
+    const trimmedClient = normalizeTicketPart(client);
+    const trimmedTicket = normalizeTicketPart(ticket);
+    if (!trimmedClient || !trimmedTicket) return;
 
-    const key = toTicketKey(trimmedClient, trimmedTicket)
-    if (isTicketPinned(trimmedClient, trimmedTicket)) return
+    const key = toTicketKey(trimmedClient, trimmedTicket);
+    if (isTicketPinned(trimmedClient, trimmedTicket)) return;
 
     setPinnedTickets((prev) => [
       ...prev,
@@ -797,184 +897,188 @@ function App() {
         key,
         client: trimmedClient,
         ticket: trimmedTicket,
-        pinnedAt: dateKey
-      }
-    ])
-  }
+        pinnedAt: dateKey,
+      },
+    ]);
+  };
 
   const unpinTicket = (key: string): void => {
     if (friendlyNameTimersRef.current[key]) {
-      clearTimeout(friendlyNameTimersRef.current[key])
-      delete friendlyNameTimersRef.current[key]
+      clearTimeout(friendlyNameTimersRef.current[key]);
+      delete friendlyNameTimersRef.current[key];
     }
     setFriendlyNameDrafts((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-    setPinnedTickets((prev) => prev.filter((ticket) => ticket.key !== key))
-  }
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setPinnedTickets((prev) => prev.filter((ticket) => ticket.key !== key));
+  };
 
   const updatePinnedFriendlyName = (key: string, friendlyName: string): void => {
-    setPinnedTickets((prev) => prev.map((ticket) => (
-      ticket.key === key
-        ? { ...ticket, friendlyName }
-        : ticket
-    )))
-  }
+    setPinnedTickets((prev) =>
+      prev.map((ticket) => (ticket.key === key ? { ...ticket, friendlyName } : ticket)),
+    );
+  };
 
   const handlePinnedFriendlyNameChange = (key: string, value: string): void => {
-    setFriendlyNameDrafts((prev) => ({ ...prev, [key]: value }))
+    setFriendlyNameDrafts((prev) => ({ ...prev, [key]: value }));
     if (friendlyNameTimersRef.current[key]) {
-      clearTimeout(friendlyNameTimersRef.current[key])
+      clearTimeout(friendlyNameTimersRef.current[key]);
     }
     friendlyNameTimersRef.current[key] = setTimeout(() => {
-      updatePinnedFriendlyName(key, value)
-      delete friendlyNameTimersRef.current[key]
-    }, 300)
-  }
+      updatePinnedFriendlyName(key, value);
+      delete friendlyNameTimersRef.current[key];
+    }, 300);
+  };
 
   const getRecentTicketStats = (): Record<string, TicketRecentStats> => {
-    const recentDateKeys = getRecentDateKeys(currentDate)
-    const stats: Record<string, TicketRecentStats> = {}
+    const recentDateKeys = getRecentDateKeys(currentDate);
+    const stats: Record<string, TicketRecentStats> = {};
 
     recentDateKeys.forEach((recentDateKey) => {
-      const dayEntries = entries[recentDateKey] || []
+      const dayEntries = entries[recentDateKey] || [];
       dayEntries.forEach((entry) => {
-        const client = normalizeTicketPart(entry.client)
-        const ticket = normalizeTicketPart(entry.ticket)
-        if (!client || !ticket) return
-        const lookup = toTicketKeyLookup(client, ticket)
-        const currentLastLogged = stats[lookup]?.lastLoggedDate
+        const client = normalizeTicketPart(entry.client);
+        const ticket = normalizeTicketPart(entry.ticket);
+        if (!client || !ticket) return;
+        const lookup = toTicketKeyLookup(client, ticket);
+        const currentLastLogged = stats[lookup]?.lastLoggedDate;
         if (!currentLastLogged || recentDateKey > currentLastLogged) {
-          stats[lookup] = { client, ticket, lastLoggedDate: recentDateKey }
+          stats[lookup] = { client, ticket, lastLoggedDate: recentDateKey };
         }
-      })
-    })
+      });
+    });
 
-    return stats
-  }
+    return stats;
+  };
 
-  const recentTicketStats = getRecentTicketStats()
+  const recentTicketStats = getRecentTicketStats();
 
   const getTicketOptionGroups = (): TicketOptionGroups => {
-    const groups: TicketOptionGroups = { pinned: [], todos: [], recent: [] }
-    const seenGlobal = new Set<string>()
+    const groups: TicketOptionGroups = { pinned: [], todos: [], recent: [] };
+    const seenGlobal = new Set<string>();
 
     pinnedTickets.forEach((pinned) => {
-      const lookup = toTicketKeyLookup(pinned.client, pinned.ticket)
-      if (seenGlobal.has(lookup)) return
+      const lookup = toTicketKeyLookup(pinned.client, pinned.ticket);
+      if (seenGlobal.has(lookup)) return;
 
-      const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate
+      const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate;
       groups.pinned.push({
         key: pinned.key,
         client: pinned.client,
         ticket: pinned.ticket,
-        source: 'pinned',
+        source: "pinned",
         friendlyName: pinned.friendlyName,
         lastLoggedDate,
-        sortByRecentDate: lastLoggedDate
-      })
-      seenGlobal.add(lookup)
-    })
+        sortByRecentDate: lastLoggedDate,
+      });
+      seenGlobal.add(lookup);
+    });
 
-    const todosSeen = new Set<string>()
+    const todosSeen = new Set<string>();
     todos
       .filter((todo) => !todo.completed || todo.completedDate === dateKey)
       .filter((todo) => Boolean(todo.client && todo.ticket))
       .forEach((todo) => {
-        const client = normalizeTicketPart(todo.client || '')
-        const ticket = normalizeTicketPart(todo.ticket || '')
-        if (!client || !ticket) return
+        const client = normalizeTicketPart(todo.client || "");
+        const ticket = normalizeTicketPart(todo.ticket || "");
+        if (!client || !ticket) return;
 
-        const lookup = toTicketKeyLookup(client, ticket)
-        if (todosSeen.has(lookup) || seenGlobal.has(lookup)) return
+        const lookup = toTicketKeyLookup(client, ticket);
+        if (todosSeen.has(lookup) || seenGlobal.has(lookup)) return;
 
-        const pinnedMatch = pinnedTickets.find((pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup)
-        const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate
+        const pinnedMatch = pinnedTickets.find(
+          (pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
+        );
+        const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate;
         groups.todos.push({
           key: toTicketKey(client, ticket),
           client,
           ticket,
-          source: 'todo',
+          source: "todo",
           friendlyName: pinnedMatch?.friendlyName,
           lastLoggedDate,
-          sortByRecentDate: lastLoggedDate
-        })
-        todosSeen.add(lookup)
-        seenGlobal.add(lookup)
-      })
+          sortByRecentDate: lastLoggedDate,
+        });
+        todosSeen.add(lookup);
+        seenGlobal.add(lookup);
+      });
 
-    const recentSeen = new Set<string>()
+    const recentSeen = new Set<string>();
     Object.entries(recentTicketStats).forEach(([lookup, stats]) => {
-      if (recentSeen.has(lookup) || seenGlobal.has(lookup)) return
-      const client = stats.client
-      const ticket = stats.ticket
-      if (!client || !ticket) return
+      if (recentSeen.has(lookup) || seenGlobal.has(lookup)) return;
+      const client = stats.client;
+      const ticket = stats.ticket;
+      if (!client || !ticket) return;
 
-      const pinnedMatch = pinnedTickets.find((pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup)
+      const pinnedMatch = pinnedTickets.find(
+        (pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
+      );
       groups.recent.push({
         key: toTicketKey(client, ticket),
         client,
         ticket,
-        source: 'recent',
+        source: "recent",
         friendlyName: pinnedMatch?.friendlyName,
         lastLoggedDate: stats.lastLoggedDate,
-        sortByRecentDate: stats.lastLoggedDate
-      })
-      recentSeen.add(lookup)
-      seenGlobal.add(lookup)
-    })
+        sortByRecentDate: stats.lastLoggedDate,
+      });
+      recentSeen.add(lookup);
+      seenGlobal.add(lookup);
+    });
 
-    groups.pinned.sort(sortTicketOptions)
-    groups.todos.sort(sortTicketOptions)
-    groups.recent.sort(sortTicketOptions)
-    groups.recent = groups.recent.slice(0, 30)
+    groups.pinned.sort(sortTicketOptions);
+    groups.todos.sort(sortTicketOptions);
+    groups.recent.sort(sortTicketOptions);
+    groups.recent = groups.recent.slice(0, 30);
 
-    return groups
-  }
+    return groups;
+  };
 
-  const ticketOptionGroups = getTicketOptionGroups()
+  const ticketOptionGroups = getTicketOptionGroups();
 
   const pinnedTicketsForDisplay = [...pinnedTickets]
     .map((ticket) => {
-      const lookup = toTicketKeyLookup(ticket.client, ticket.ticket)
+      const lookup = toTicketKeyLookup(ticket.client, ticket.ticket);
       return {
         ...ticket,
-        lastLoggedDate: recentTicketStats[lookup]?.lastLoggedDate
-      }
+        lastLoggedDate: recentTicketStats[lookup]?.lastLoggedDate,
+      };
     })
     .sort((a, b) => {
-      const dateA = a.lastLoggedDate || ''
-      const dateB = b.lastLoggedDate || ''
+      const dateA = a.lastLoggedDate || "";
+      const dateB = b.lastLoggedDate || "";
       if (dateA !== dateB) {
-        return dateB.localeCompare(dateA)
+        return dateB.localeCompare(dateA);
       }
-      return a.key.localeCompare(b.key)
-    })
+      return a.key.localeCompare(b.key);
+    });
 
   const getJiraUrl = (client?: string, ticket?: string): string | undefined => {
     if (jiraBaseUrl && client && ticket) {
-      return `${jiraBaseUrl}/${client}-${ticket}`
+      return `${jiraBaseUrl}/${client}-${ticket}`;
     }
-    return undefined
-  }
+    return undefined;
+  };
 
   const getSummary = () => {
-    const dayEntries = entries[dateKey] || []
-    const summary: Record<string, SummaryAccumulator> = {}
+    const dayEntries = entries[dateKey] || [];
+    const summary: Record<string, SummaryAccumulator> = {};
 
-    dayEntries.forEach(entry => {
+    dayEntries.forEach((entry) => {
       if (entry.client && entry.startTime && entry.endTime) {
-        const ticketTrim = entry.ticket ? entry.ticket.trim() : ''
-        const key = ticketTrim ? `${entry.client}-${ticketTrim}` : `${entry.client}-untracked-${entry.id}`
-        const isUntracked = !ticketTrim
+        const ticketTrim = entry.ticket ? entry.ticket.trim() : "";
+        const key = ticketTrim
+          ? `${entry.client}-${ticketTrim}`
+          : `${entry.client}-untracked-${entry.id}`;
+        const isUntracked = !ticketTrim;
 
-        const [startH, startM] = entry.startTime.split(':').map(Number)
-        const [endH, endM] = entry.endTime.split(':').map(Number)
-        const start = startH * 60 + startM
-        const end = endH * 60 + endM
-        const minutes = end - start
+        const [startH, startM] = entry.startTime.split(":").map(Number);
+        const [endH, endM] = entry.endTime.split(":").map(Number);
+        const start = startH * 60 + startM;
+        const end = endH * 60 + endM;
+        const minutes = end - start;
 
         if (!summary[key]) {
           summary[key] = {
@@ -985,172 +1089,180 @@ function App() {
             allDisabled: true,
             someDisabled: false,
             entryIds: [],
-            isUntracked
-          }
+            isUntracked,
+          };
         }
-        summary[key].minutes += minutes
-        summary[key].entryIds.push(entry.id)
+        summary[key].minutes += minutes;
+        summary[key].entryIds.push(entry.id);
         if (!entry.disabled) {
-          summary[key].allDisabled = false
+          summary[key].allDisabled = false;
         } else {
-          summary[key].someDisabled = true
+          summary[key].someDisabled = true;
         }
         if (entry.description && entry.description.trim()) {
-          summary[key].descriptions.push(entry.description.trim())
+          summary[key].descriptions.push(entry.description.trim());
         }
       }
-    })
+    });
 
     const summaryArray = Object.entries(summary).map(([key, data]) => ({
       key,
       ...data,
       hours: (data.minutes / 60).toFixed(2),
-      isIndeterminate: data.someDisabled && !data.allDisabled
-    }))
+      isIndeterminate: data.someDisabled && !data.allDisabled,
+    }));
 
     return summaryArray.sort((a, b) => {
-      if (a.allDisabled === b.allDisabled) return 0
-      return a.allDisabled ? 1 : -1
-    })
-  }
+      if (a.allDisabled === b.allDisabled) return 0;
+      return a.allDisabled ? 1 : -1;
+    });
+  };
 
   const getSummaryTotalHours = () => {
-    const summary = getSummary()
-    const totalMinutes = summary.reduce((acc, item) => acc + item.minutes, 0)
-    return (totalMinutes / 60).toFixed(2)
-  }
+    const summary = getSummary();
+    const totalMinutes = summary.reduce((acc, item) => acc + item.minutes, 0);
+    return (totalMinutes / 60).toFixed(2);
+  };
 
   const getClientTotals = () => {
-    const dayEntries = entries[dateKey] || []
-    const clientTotals: Record<string, number> = {}
+    const dayEntries = entries[dateKey] || [];
+    const clientTotals: Record<string, number> = {};
 
-    dayEntries.forEach(entry => {
+    dayEntries.forEach((entry) => {
       if (entry.client && entry.startTime && entry.endTime) {
-        const [startH, startM] = entry.startTime.split(':').map(Number)
-        const [endH, endM] = entry.endTime.split(':').map(Number)
-        const start = startH * 60 + startM
-        const end = endH * 60 + endM
-        const minutes = end - start
+        const [startH, startM] = entry.startTime.split(":").map(Number);
+        const [endH, endM] = entry.endTime.split(":").map(Number);
+        const start = startH * 60 + startM;
+        const end = endH * 60 + endM;
+        const minutes = end - start;
 
         if (!clientTotals[entry.client]) {
-          clientTotals[entry.client] = 0
+          clientTotals[entry.client] = 0;
         }
-        clientTotals[entry.client] += minutes
+        clientTotals[entry.client] += minutes;
       }
-    })
+    });
 
-    return clientTotals
-  }
+    return clientTotals;
+  };
 
-  const isEntryUntracked = (entry: TimeEntry): boolean => !entry.ticket || !entry.ticket.trim()
+  const isEntryUntracked = (entry: TimeEntry): boolean => !entry.ticket || !entry.ticket.trim();
 
   const toggleSummaryEntries = (entryIds: number[], disabled: boolean): void => {
-    const dayEntries = entries[dateKey] || []
+    const dayEntries = entries[dateKey] || [];
     const trackedIds = disabled
-      ? entryIds.filter(id => {
-        const entry = dayEntries.find(e => e.id === id)
-        return entry && !isEntryUntracked(entry)
-      })
-      : entryIds
-    const updatedEntries = dayEntries.map(entry => {
+      ? entryIds.filter((id) => {
+          const entry = dayEntries.find((e) => e.id === id);
+          return entry && !isEntryUntracked(entry);
+        })
+      : entryIds;
+    const updatedEntries = dayEntries.map((entry) => {
       if (trackedIds.includes(entry.id)) {
-        return { ...entry, disabled }
+        return { ...entry, disabled };
       }
-      return entry
-    })
-    updateDayEntries(updatedEntries)
-  }
+      return entry;
+    });
+    updateDayEntries(updatedEntries);
+  };
 
   const handleMarkAsLogged = () => {
     if (clickedSummary) {
-      toggleSummaryEntries(clickedSummary.entryIds, true)
-      setClickedSummary(null)
+      toggleSummaryEntries(clickedSummary.entryIds, true);
+      setClickedSummary(null);
     }
-    setShowLogPrompt(false)
-  }
+    setShowLogPrompt(false);
+  };
 
   const formatDate = (date: Date): string => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
   const handleCalendarClick = () => {
-    const datePicker = document.getElementById('date-picker')
-    if (datePicker instanceof HTMLInputElement && typeof datePicker.showPicker === 'function') {
+    const datePicker = document.getElementById("date-picker");
+    if (datePicker instanceof HTMLInputElement && typeof datePicker.showPicker === "function") {
       try {
-        datePicker.showPicker()
+        datePicker.showPicker();
       } catch {
         // Ignore unsupported or user-gesture restricted picker invocation failures.
       }
     }
-  }
+  };
 
   const toggleSection = (sectionName: string): void => {
-    setCollapsedSections(prev => ({
+    setCollapsedSections((prev) => ({
       ...prev,
-      [sectionName]: !prev[sectionName]
-    }))
-  }
+      [sectionName]: !prev[sectionName],
+    }));
+  };
 
   const evaluateRemindersNow = (referenceNow: Date): void => {
-    if (activeReminderRef.current) return
+    if (activeReminderRef.current) return;
 
-    const openDue = isReminderDue(openReminderTimeRef.current, lastOpenReminderDateRef.current, referenceNow)
-    const closeDue = isReminderDue(closeReminderTimeRef.current, lastCloseReminderDateRef.current, referenceNow)
-    const todayKey = formatLocalDate(referenceNow)
+    const openDue = isReminderDue(
+      openReminderTimeRef.current,
+      lastOpenReminderDateRef.current,
+      referenceNow,
+    );
+    const closeDue = isReminderDue(
+      closeReminderTimeRef.current,
+      lastCloseReminderDateRef.current,
+      referenceNow,
+    );
+    const todayKey = formatLocalDate(referenceNow);
 
     if (openDue) {
-      lastOpenReminderDateRef.current = todayKey
-      setLastOpenReminderDate(todayKey)
-      activeReminderRef.current = 'open'
-      setActiveReminder('open')
-      return
+      lastOpenReminderDateRef.current = todayKey;
+      setLastOpenReminderDate(todayKey);
+      activeReminderRef.current = "open";
+      setActiveReminder("open");
+      return;
     }
 
     if (closeDue) {
-      lastCloseReminderDateRef.current = todayKey
-      setLastCloseReminderDate(todayKey)
-      activeReminderRef.current = 'close'
-      setActiveReminder('close')
+      lastCloseReminderDateRef.current = todayKey;
+      setLastCloseReminderDate(todayKey);
+      activeReminderRef.current = "close";
+      setActiveReminder("close");
     }
-  }
+  };
 
   const handleDismissReminder = () => {
-    activeReminderRef.current = null
-    setActiveReminder(null)
-  }
+    activeReminderRef.current = null;
+    setActiveReminder(null);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'q') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "q") {
         e.preventDefault();
-        setIsSearchOpen(prev => !prev);
+        setIsSearchOpen((prev) => !prev);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
-    const header = headerRef.current
-    if (!header) return
+    const header = headerRef.current;
+    if (!header) return;
 
     const updateHeight = () => {
-      const headerH = header.offsetHeight
-      const headerMarginBottom = 20
-      setHeaderHeight(headerH + headerMarginBottom)
-    }
+      const headerH = header.offsetHeight;
+      const headerMarginBottom = 20;
+      setHeaderHeight(headerH + headerMarginBottom);
+    };
 
-    updateHeight()
-    const observer = new ResizeObserver(updateHeight)
-    observer.observe(header)
-    return () => observer.disconnect()
-  }, [currentView])
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [currentView]);
 
   return (
     <>
@@ -1161,11 +1273,11 @@ function App() {
           currentDate={currentDate}
           currentView={currentView}
           onNavigateToDate={(date) => {
-            const parsedDate = dateKeyToLocalNoon(date)
+            const parsedDate = dateKeyToLocalNoon(date);
             if (parsedDate) {
-              setCurrentDate(parsedDate)
+              setCurrentDate(parsedDate);
             } else {
-              notifyErrorToast('Invalid date', 'Could not navigate to the selected date.')
+              notifyErrorToast("Invalid date", "Could not navigate to the selected date.");
             }
           }}
         />
@@ -1175,7 +1287,9 @@ function App() {
               <h3>Reminder</h3>
               <p>Reminder: send {activeReminder} email</p>
               <div className="confirmation-buttons">
-                <button className="btn-confirm" onClick={handleDismissReminder}>Dismiss</button>
+                <button className="btn-confirm" onClick={handleDismissReminder}>
+                  Dismiss
+                </button>
               </div>
             </div>
           </div>
@@ -1184,22 +1298,22 @@ function App() {
           <button
             className="sidebar-toggle-button"
             onClick={() => setSidebarVisible(!sidebarVisible)}
-            title={sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
+            title={sidebarVisible ? "Hide Sidebar" : "Show Sidebar"}
           >
-            {sidebarVisible ? '›' : '‹'}
+            {sidebarVisible ? "›" : "‹"}
           </button>
           <div className="header" ref={headerRef}>
             <h1>Time Tracker</h1>
             <div className="view-toggle">
               <button
-                className={`view-button ${currentView === 'calendar' ? 'active' : ''}`}
-                onClick={() => setCurrentView('calendar')}
+                className={`view-button ${currentView === "calendar" ? "active" : ""}`}
+                onClick={() => setCurrentView("calendar")}
               >
                 Calendar
               </button>
               <button
-                className={`view-button ${currentView === 'task' ? 'active' : ''}`}
-                onClick={() => setCurrentView('task')}
+                className={`view-button ${currentView === "task" ? "active" : ""}`}
+                onClick={() => setCurrentView("task")}
               >
                 Daily Tasks
               </button>
@@ -1210,17 +1324,19 @@ function App() {
               <button onClick={() => changeDate(1)}>Next →</button>
               <button onClick={() => setCurrentDate(toLocalNoon(new Date()))}>Today</button>
               <div className="date-picker-wrapper">
-                <span className="calendar-icon" onClick={handleCalendarClick}>📅</span>
+                <span className="calendar-icon" onClick={handleCalendarClick}>
+                  📅
+                </span>
                 <input
                   id="date-picker"
                   type="date"
                   value={formatLocalDate(currentDate)}
                   onChange={(e) => {
-                    const parsedDate = dateKeyToLocalNoon(e.target.value)
+                    const parsedDate = dateKeyToLocalNoon(e.target.value);
                     if (parsedDate) {
-                      setCurrentDate(parsedDate)
+                      setCurrentDate(parsedDate);
                     } else {
-                      notifyErrorToast('Invalid date', 'Please select a valid date.')
+                      notifyErrorToast("Invalid date", "Please select a valid date.");
                     }
                   }}
                   className="date-picker-input"
@@ -1237,7 +1353,7 @@ function App() {
           </div>
 
           <Suspense fallback={<div className="total-hours">Loading view...</div>}>
-            {currentView === 'task' ? (
+            {currentView === "task" ? (
               <TaskView
                 dayEntries={entries[dateKey] || []}
                 clients={clients}
@@ -1262,8 +1378,8 @@ function App() {
                 calendarStartTime={calendarStartTime}
                 calendarEndTime={calendarEndTime}
                 onEditEntry={(entry, dateKey) => {
-                  setEditingEntry(entry)
-                  setEditingEntryDateKey(dateKey ?? null)
+                  setEditingEntry(entry);
+                  setEditingEntryDateKey(dateKey ?? null);
                 }}
                 editingEntry={editingEntry}
                 editingEntryDateKey={editingEntryDateKey}
@@ -1282,17 +1398,30 @@ function App() {
                 title={`Ticket Summaries (Total: ${getSummaryTotalHours()}h)`}
                 sectionName="summary"
                 isCollapsed={collapsedSections.summary}
-                onToggle={() => toggleSection('summary')}
+                onToggle={() => toggleSection("summary")}
               >
                 {getSummary().length > 0 ? (
                   <ul className="client-list">
-                    {getSummary().map(item => (
+                    {getSummary().map((item) => (
                       <li
                         key={item.key}
                         className="client-item"
-                        style={{ flexDirection: 'column', alignItems: 'flex-start', position: 'relative', paddingBottom: '35px', opacity: item.allDisabled ? 0.5 : 1 }}
+                        style={{
+                          flexDirection: "column",
+                          alignItems: "flex-start",
+                          position: "relative",
+                          paddingBottom: "35px",
+                          opacity: item.allDisabled ? 0.5 : 1,
+                        }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            width: "100%",
+                            alignItems: "center",
+                          }}
+                        >
                           <div>
                             {getJiraUrl(item.client, item.ticket) ? (
                               <a
@@ -1300,9 +1429,9 @@ function App() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="summary-link"
-                                onClick={(e) => {
-                                  navigator.clipboard.writeText(item.hours + 'h')
-                                  setClickedSummary(item)
+                                onClick={() => {
+                                  void navigator.clipboard.writeText(item.hours + "h");
+                                  setClickedSummary(item);
                                 }}
                               >
                                 {item.isUntracked ? `${item.client} (untracked)` : item.key}
@@ -1314,9 +1443,7 @@ function App() {
                             )}
                           </div>
                           <div className="summary-actions">
-                            <div className="summary-hours">
-                              {item.hours}h
-                            </div>
+                            <div className="summary-hours">{item.hours}h</div>
                             {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
                               <button
                                 className="summary-pin-button"
@@ -1329,27 +1456,34 @@ function App() {
                           </div>
                         </div>
                         {item.descriptions.length > 0 && (
-                          <ul style={{ marginTop: '8px', paddingLeft: '20px', width: '100%' }}>
-                            {item.descriptions.flatMap((desc) =>
-                              desc.split(/[;\n]/).map((part) => part.trim()).filter(part => part.length > 0)
-                            ).map((desc, idx) => (
-                              <li key={idx} className="summary-description">
-                                {desc}
-                              </li>
-                            ))}
+                          <ul style={{ marginTop: "8px", paddingLeft: "20px", width: "100%" }}>
+                            {item.descriptions
+                              .flatMap((desc) =>
+                                desc
+                                  .split(/[;\n]/)
+                                  .map((part) => part.trim())
+                                  .filter((part) => part.length > 0),
+                              )
+                              .map((desc, idx) => (
+                                <li key={idx} className="summary-description">
+                                  {desc}
+                                </li>
+                              ))}
                           </ul>
                         )}
                         {!item.isUntracked && (
-                          <div style={{ position: 'absolute', bottom: '10px', right: '10px' }}>
+                          <div style={{ position: "absolute", bottom: "10px", right: "10px" }}>
                             <input
                               type="checkbox"
                               checked={item.allDisabled}
                               ref={(el) => {
-                                if (el) el.indeterminate = item.isIndeterminate
+                                if (el) el.indeterminate = item.isIndeterminate;
                               }}
-                              onChange={(e) => toggleSummaryEntries(item.entryIds, e.target.checked)}
+                              onChange={(e) =>
+                                toggleSummaryEntries(item.entryIds, e.target.checked)
+                              }
                               style={{
-                                marginBottom: '0',
+                                marginBottom: "0",
                               }}
                               title="Toggle all entries for this ticket"
                             />
@@ -1359,7 +1493,7 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
                     No entries with client yet
                   </div>
                 )}
@@ -1369,7 +1503,7 @@ function App() {
                 title="Pinned Tickets"
                 sectionName="pinnedTickets"
                 isCollapsed={collapsedSections.pinnedTickets}
-                onToggle={() => toggleSection('pinnedTickets')}
+                onToggle={() => toggleSection("pinnedTickets")}
               >
                 {pinnedTicketsForDisplay.length > 0 ? (
                   <ul className="client-list">
@@ -1377,24 +1511,28 @@ function App() {
                       <li key={ticket.key} className="client-item pinned-ticket-item">
                         <div className="pinned-ticket-header">
                           <span className="pinned-ticket-label">
-                            {ticket.friendlyName?.trim() ? `${ticket.friendlyName.trim()} (${ticket.key})` : ticket.key}
+                            {ticket.friendlyName?.trim()
+                              ? `${ticket.friendlyName.trim()} (${ticket.key})`
+                              : ticket.key}
                           </span>
                           <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
                         </div>
                         <div className="pinned-ticket-recent">
-                          Last logged: {ticket.lastLoggedDate || '> 7 days ago'}
+                          Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
                         </div>
                         <input
                           type="text"
                           placeholder="Friendly name (optional)"
-                          value={friendlyNameDrafts[ticket.key] ?? ticket.friendlyName ?? ''}
-                          onChange={(e) => handlePinnedFriendlyNameChange(ticket.key, e.target.value)}
+                          value={friendlyNameDrafts[ticket.key] ?? ticket.friendlyName ?? ""}
+                          onChange={(e) =>
+                            handlePinnedFriendlyNameChange(ticket.key, e.target.value)
+                          }
                         />
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
                     No pinned tickets yet
                   </div>
                 )}
@@ -1404,15 +1542,15 @@ function App() {
                 title="Tag Types"
                 sectionName="tagTypes"
                 isCollapsed={collapsedSections.tagTypes}
-                onToggle={() => toggleSection('tagTypes')}
+                onToggle={() => toggleSection("tagTypes")}
               >
-                <div style={{ marginBottom: '15px' }}>
+                <div style={{ marginBottom: "15px" }}>
                   <input
                     type="text"
                     placeholder="New tag type"
                     value={newTagType}
                     onChange={(e) => setNewTagType(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addTagType()}
+                    onKeyDown={(e) => e.key === "Enter" && addTagType()}
                   />
                   <button className="add-button" onClick={addTagType}>
                     Add Tag Type
@@ -1429,7 +1567,7 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
                     No tag types configured yet
                   </div>
                 )}
@@ -1439,9 +1577,9 @@ function App() {
                 title="Todo"
                 sectionName="todo"
                 isCollapsed={collapsedSections.todo}
-                onToggle={() => toggleSection('todo')}
+                onToggle={() => toggleSection("todo")}
               >
-                <div className="todo-form" style={{ marginBottom: '15px' }}>
+                <div className="todo-form" style={{ marginBottom: "15px" }}>
                   <TodoFormFields
                     description={newTodoDescription}
                     descriptionRef={newTodoDescriptionRef}
@@ -1460,10 +1598,10 @@ function App() {
 
                 {getSortedTodos().length > 0 ? (
                   <ul className="client-list">
-                    {getSortedTodos().map(todo => (
+                    {getSortedTodos().map((todo) => (
                       <li
                         key={todo.id}
-                        className={`client-item todo-item ${todo.completed ? 'todo-completed' : ''}`}
+                        className={`client-item todo-item ${todo.completed ? "todo-completed" : ""}`}
                       >
                         {editingTodoId === todo.id ? (
                           <>
@@ -1478,14 +1616,27 @@ function App() {
                                 clients={clients}
                                 ticketValue={editTodoTicket}
                                 onTicketChange={setEditTodoTicket}
-                                descriptionStyle={{ width: '100%', marginBottom: '8px' }}
+                                descriptionStyle={{ width: "100%", marginBottom: "8px" }}
                               />
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%' }}>
-                              <button onClick={handleCancelEditTodo} style={{ padding: '4px 8px', fontSize: '12px', marginLeft: 'auto' }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                justifyContent: "flex-end",
+                                width: "100%",
+                              }}
+                            >
+                              <button
+                                onClick={handleCancelEditTodo}
+                                style={{ padding: "4px 8px", fontSize: "12px", marginLeft: "auto" }}
+                              >
                                 Cancel
                               </button>
-                              <button onClick={handleSaveEditTodo} style={{ padding: '4px 8px', fontSize: '12px' }}>
+                              <button
+                                onClick={handleSaveEditTodo}
+                                style={{ padding: "4px 8px", fontSize: "12px" }}
+                              >
                                 Save
                               </button>
                             </div>
@@ -1497,7 +1648,11 @@ function App() {
                                 className="todo-checkbox"
                                 checked={todo.completed}
                                 onCheckedChange={() => handleToggleTodo(todo.id)}
-                                aria-label={todo.completed ? 'Mark todo as incomplete' : 'Mark todo as complete'}
+                                aria-label={
+                                  todo.completed
+                                    ? "Mark todo as incomplete"
+                                    : "Mark todo as complete"
+                                }
                               >
                                 <Checkbox.Indicator className="todo-checkbox-indicator">
                                   <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -1515,12 +1670,14 @@ function App() {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="summary-link"
-                                        style={{ fontSize: 'inherit' }}
+                                        style={{ fontSize: "inherit" }}
                                       >
                                         {todo.client}-{todo.ticket}
                                       </a>
                                     ) : (
-                                      <span>{todo.client}-{todo.ticket}</span>
+                                      <span>
+                                        {todo.client}-{todo.ticket}
+                                      </span>
                                     )
                                   ) : (
                                     <span>{todo.client}</span>
@@ -1542,9 +1699,9 @@ function App() {
                               className="todo-description-wrap"
                               onClick={() => handleStartEditTodo(todo)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-                                  e.preventDefault()
-                                  handleStartEditTodo(todo)
+                                if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                                  e.preventDefault();
+                                  handleStartEditTodo(todo);
                                 }
                               }}
                               tabIndex={0}
@@ -1552,7 +1709,9 @@ function App() {
                               aria-label="Edit todo description"
                               title="Click to edit"
                             >
-                              <pre className={`todo-description-pre ${todo.completed ? 'todo-description-complete' : ''}`}>
+                              <pre
+                                className={`todo-description-pre ${todo.completed ? "todo-description-complete" : ""}`}
+                              >
                                 {todo.description}
                               </pre>
                             </div>
@@ -1562,7 +1721,7 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: '#999', fontSize: '14px', padding: '10px' }}>
+                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
                     No todos yet
                   </div>
                 )}
@@ -1572,14 +1731,14 @@ function App() {
                 title="Client Summaries"
                 sectionName="clients"
                 isCollapsed={collapsedSections.clients}
-                onToggle={() => toggleSection('clients')}
+                onToggle={() => toggleSection("clients")}
               >
                 <input
                   type="text"
                   placeholder="New client name"
                   value={newClient}
                   onChange={(e) => setNewClient(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addClient()}
+                  onKeyPress={(e) => e.key === "Enter" && addClient()}
                 />
                 <button className="add-button" onClick={addClient}>
                   Add Client
@@ -1587,25 +1746,29 @@ function App() {
                 <ul className="client-list">
                   {[...clients]
                     .sort((a, b) => {
-                      const clientTotals = getClientTotals()
-                      const aTotals = clientTotals[a] || 0
-                      const bTotals = clientTotals[b] || 0
+                      const clientTotals = getClientTotals();
+                      const aTotals = clientTotals[a] || 0;
+                      const bTotals = clientTotals[b] || 0;
                       // Clients with time first
-                      if (aTotals > 0 && bTotals === 0) return -1
-                      if (aTotals === 0 && bTotals > 0) return 1
+                      if (aTotals > 0 && bTotals === 0) return -1;
+                      if (aTotals === 0 && bTotals > 0) return 1;
                       // Then alphabetically
-                      return a.localeCompare(b)
+                      return a.localeCompare(b);
                     })
-                    .map(client => {
-                      const clientTotals = getClientTotals()
-                      const totalHours = clientTotals[client] ? (clientTotals[client] / 60).toFixed(2) : '0.00'
+                    .map((client) => {
+                      const clientTotals = getClientTotals();
+                      const totalHours = clientTotals[client]
+                        ? (clientTotals[client] / 60).toFixed(2)
+                        : "0.00";
                       return (
                         <li key={client} className="client-item client-item-with-color">
                           <div className="client-info">
                             <span>
                               {client}
                               {clientTotals[client] && clientTotals[client] > 0 && (
-                                <span style={{ color: '#999', fontSize: '12px', marginLeft: '8px' }}>
+                                <span
+                                  style={{ color: "#999", fontSize: "12px", marginLeft: "8px" }}
+                                >
                                   ({totalHours}h)
                                 </span>
                               )}
@@ -1614,18 +1777,20 @@ function App() {
                           <div className="client-color-picker">
                             <input
                               type="color"
-                              value={clientColors[client] || '#2196F3'}
-                              onChange={(e) => setClientColors({ ...clientColors, [client]: e.target.value })}
+                              value={clientColors[client] || "#2196F3"}
+                              onChange={(e) =>
+                                setClientColors({ ...clientColors, [client]: e.target.value })
+                              }
                               style={{
-                                marginBottom: '0',
+                                marginBottom: "0",
                               }}
                               title="Set client color"
                             />
                             <div
                               className="color-preview"
                               style={{
-                                backgroundColor: clientColors[client] || '#2196F3',
-                                color: getContrastColor(clientColors[client] || '#2196F3')
+                                backgroundColor: clientColors[client] || "#2196F3",
+                                color: getContrastColor(clientColors[client] || "#2196F3"),
                               }}
                             >
                               Aa
@@ -1633,7 +1798,7 @@ function App() {
                           </div>
                           <button onClick={() => removeClient(client)}>Remove</button>
                         </li>
-                      )
+                      );
                     })}
                 </ul>
               </CollapsibleSection>
@@ -1642,112 +1807,141 @@ function App() {
                 title="Settings"
                 sectionName="settings"
                 isCollapsed={collapsedSections.settings}
-                onToggle={() => toggleSection('settings')}
+                onToggle={() => toggleSection("settings")}
               >
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Jira Base URL</h3>
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Jira Base URL
+                  </h3>
                   <input
                     type="text"
                     placeholder="e.g., https://jira.example.com/browse"
                     value={jiraBaseUrl}
                     onChange={(e) => setJiraBaseUrl(e.target.value)}
                   />
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-                    Tickets will link to: {jiraBaseUrl || '(not set)'}/CLIENT-123
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                    Tickets will link to: {jiraBaseUrl || "(not set)"}/CLIENT-123
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Default Start Time</h3>
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Default Start Time
+                  </h3>
                   <input
                     type="time"
                     value={defaultStartTime}
                     onChange={(e) => setDefaultStartTime(e.target.value)}
                   />
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
                     New entries will start at {defaultStartTime} (if no previous entries)
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Open Reminder Time</h3>
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Open Reminder Time
+                  </h3>
                   <Input
                     type="time"
-                    value={openReminderTime ?? ''}
+                    value={openReminderTime ?? ""}
                     onChange={(e) => {
-                      const nextValue = e.target.value || null
-                      if (nextValue === openReminderTime) return
-                      openReminderTimeRef.current = nextValue
-                      lastOpenReminderDateRef.current = null
-                      setOpenReminderTime(nextValue)
-                      setLastOpenReminderDate(null)
-                      evaluateRemindersNow(new Date())
+                      const nextValue = e.target.value || null;
+                      if (nextValue === openReminderTime) return;
+                      openReminderTimeRef.current = nextValue;
+                      lastOpenReminderDateRef.current = null;
+                      setOpenReminderTime(nextValue);
+                      setLastOpenReminderDate(null);
+                      evaluateRemindersNow(new Date());
                     }}
                   />
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
                     Shows a daily reminder to send your open email.
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Close Reminder Time</h3>
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Close Reminder Time
+                  </h3>
                   <input
                     type="time"
-                    value={closeReminderTime ?? ''}
+                    value={closeReminderTime ?? ""}
                     onChange={(e) => {
-                      const nextValue = e.target.value || null
-                      if (nextValue === closeReminderTime) return
-                      closeReminderTimeRef.current = nextValue
-                      lastCloseReminderDateRef.current = null
-                      setCloseReminderTime(nextValue)
-                      setLastCloseReminderDate(null)
-                      evaluateRemindersNow(new Date())
+                      const nextValue = e.target.value || null;
+                      if (nextValue === closeReminderTime) return;
+                      closeReminderTimeRef.current = nextValue;
+                      lastCloseReminderDateRef.current = null;
+                      setCloseReminderTime(nextValue);
+                      setLastCloseReminderDate(null);
+                      evaluateRemindersNow(new Date());
                     }}
                   />
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
                     Shows a daily reminder to send your close email.
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar Interval</h3>
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Calendar Interval
+                  </h3>
                   <select
                     value={calendarInterval}
                     onChange={(e) => setCalendarInterval(Number(e.target.value))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: "4px",
+                      border: "1px solid #ddd",
+                    }}
                   >
                     <option value="5">5 minutes</option>
                     <option value="15">15 minutes</option>
                     <option value="30">30 minutes</option>
                     <option value="60">60 minutes</option>
                   </select>
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
                     Drag precision for calendar view
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar Start Time</h3>
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Calendar Start Time
+                  </h3>
                   <input
                     type="time"
                     value={calendarStartTime}
                     onChange={(e) => setCalendarStartTime(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: "4px",
+                      border: "1px solid #ddd",
+                    }}
                   />
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
                     Earliest time to display in calendar
                   </div>
                 </div>
 
                 <div>
-                  <h3 style={{ fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>Calendar End Time</h3>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Calendar End Time
+                  </h3>
                   <input
                     type="time"
                     value={calendarEndTime}
                     onChange={(e) => setCalendarEndTime(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: "4px",
+                      border: "1px solid #ddd",
+                    }}
                   />
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
                     Latest time to display in calendar
                   </div>
                 </div>
@@ -1757,9 +1951,9 @@ function App() {
                 <button
                   className="dark-mode-toggle"
                   onClick={() => setDarkMode(!darkMode)}
-                  title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
                 >
-                  {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+                  {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
                 </button>
               </div>
             </div>
@@ -1768,12 +1962,28 @@ function App() {
 
         {showLogPrompt && clickedSummary && (
           <div className="calendar-modal-overlay" onClick={() => setShowLogPrompt(false)}>
-            <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <div
+              className="calendar-modal"
+              style={{ maxWidth: "400px" }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3>Mark as Logged?</h3>
-              <p>Would you like to mark <strong>{clickedSummary.key}</strong> as logged?</p>
+              <p>
+                Would you like to mark <strong>{clickedSummary.key}</strong> as logged?
+              </p>
               <div className="modal-buttons">
-                <button className="btn-cancel" onClick={() => { setShowLogPrompt(false); setClickedSummary(null); }}>No</button>
-                <button className="btn-save" onClick={handleMarkAsLogged}>Yes, Mark as Logged</button>
+                <button
+                  className="btn-cancel"
+                  onClick={() => {
+                    setShowLogPrompt(false);
+                    setClickedSummary(null);
+                  }}
+                >
+                  No
+                </button>
+                <button className="btn-save" onClick={handleMarkAsLogged}>
+                  Yes, Mark as Logged
+                </button>
               </div>
             </div>
           </div>
@@ -1781,12 +1991,23 @@ function App() {
 
         {showOverlapConfirm && (
           <div className="calendar-modal-overlay" onClick={() => setShowOverlapConfirm(null)}>
-            <div className="calendar-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <div
+              className="calendar-modal"
+              style={{ maxWidth: "400px" }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3>Time Overlap Warning</h3>
-              <p>Moving this entry will create overlapping time with existing entries on {showOverlapConfirm.toDateKey}. Continue?</p>
+              <p>
+                Moving this entry will create overlapping time with existing entries on{" "}
+                {showOverlapConfirm.toDateKey}. Continue?
+              </p>
               <div className="modal-buttons">
-                <button className="btn-cancel" onClick={() => setShowOverlapConfirm(null)}>Cancel</button>
-                <button className="btn-save" onClick={executeMoveAndClose}>Continue</button>
+                <button className="btn-cancel" onClick={() => setShowOverlapConfirm(null)}>
+                  Cancel
+                </button>
+                <button className="btn-save" onClick={executeMoveAndClose}>
+                  Continue
+                </button>
               </div>
             </div>
           </div>
@@ -1794,7 +2015,7 @@ function App() {
       </div>
       <Toaster />
     </>
-  )
+  );
 }
 
-export default App
+export default App;

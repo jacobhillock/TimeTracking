@@ -1,25 +1,33 @@
-import { useState, useEffect, useRef } from 'react'
-import debounce from 'lodash/debounce'
-import type { DebouncedFunc } from 'lodash'
-import type { SearchResult } from './services/searchService'
-import { searchEntries, formatDateForDisplay } from './services/searchService'
+import { useState, useEffect, useRef } from "react";
+import debounce from "lodash/debounce";
+import type { DebouncedFunc } from "lodash";
+import type { SearchResult } from "./services/searchService";
+import { searchEntries, formatDateForDisplay } from "./services/searchService";
 
 interface SearchModalProps {
-  isOpen: boolean
-  onClose: () => void
-  currentDate: Date
-  currentView: 'task' | 'calendar'
-  onNavigateToDate: (date: string) => void
+  isOpen: boolean;
+  onClose: () => void;
+  currentDate: Date;
+  currentView: "task" | "calendar";
+  onNavigateToDate: (date: string) => void;
 }
 
-function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDate }: SearchModalProps) {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [confirmNavigation, setConfirmNavigation] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const debounceRef = useRef<DebouncedFunc<(term: string, reqId: number) => Promise<void>> | null>(null)
-  const requestIdRef = useRef(0)
+function SearchModal({
+  isOpen,
+  onClose,
+  currentDate,
+  currentView,
+  onNavigateToDate,
+}: SearchModalProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [confirmNavigation, setConfirmNavigation] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const debounceRef = useRef<DebouncedFunc<(term: string, reqId: number) => Promise<void>> | null>(
+    null,
+  );
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -30,97 +38,97 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
   useEffect(() => {
     if (!debounceRef.current) {
       debounceRef.current = debounce(async (term: string, reqId: number) => {
-        const searchResults = await searchEntries(term)
+        const searchResults = await searchEntries(term);
         if (reqId === requestIdRef.current) {
-          setResults(searchResults)
-          setIsSearching(false)
+          setResults(searchResults);
+          setIsSearching(false);
         }
-      }, 250)
+      }, 250);
     }
 
     if (!searchTerm.trim()) {
-      debounceRef.current.cancel()
-      requestIdRef.current = 0
-      setResults([])
-      setIsSearching(false)
-      return
+      debounceRef.current.cancel();
+      requestIdRef.current = 0;
+      setResults([]);
+      setIsSearching(false);
+      return;
     }
 
-    requestIdRef.current += 1
-    const reqId = requestIdRef.current
-    setIsSearching(true)
-    debounceRef.current(searchTerm, reqId)
+    requestIdRef.current += 1;
+    const reqId = requestIdRef.current;
+    setIsSearching(true);
+    void debounceRef.current(searchTerm, reqId);
 
     return () => {
       if (debounceRef.current) {
-        debounceRef.current.cancel()
+        debounceRef.current.cancel();
       }
-    }
-  }, [searchTerm])
+    };
+  }, [searchTerm]);
 
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
-        debounceRef.current.cancel()
+        debounceRef.current.cancel();
       }
-      requestIdRef.current = 0
-    }
-  }, [])
+      requestIdRef.current = 0;
+    };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
+      if (e.key === "Escape" && isOpen) {
+        onClose();
       }
-    }
+    };
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
-  const handleResultClick = (resultDate: string): 'already-viewing' | void => {
-    const currentDateKey = currentDate.toISOString().split('T')[0]
-    
+  const handleResultClick = (resultDate: string): "already-viewing" | void => {
+    const currentDateKey = currentDate.toISOString().split("T")[0];
+
     // Check if we're already viewing this date
-    if (currentView === 'task' && resultDate === currentDateKey) {
+    if (currentView === "task" && resultDate === currentDateKey) {
       // Already on this date in task view - show tooltip
-      return 'already-viewing'
+      return "already-viewing";
     }
-    
-    if (currentView === 'calendar') {
+
+    if (currentView === "calendar") {
       // Check if date is in the visible business week
-      const d = new Date(currentDate)
-      const day = d.getDay()
-      const diff = d.getDate() - day + (day === 0 ? -2 : 1)
-      const monday = new Date(d.setDate(diff))
-      
+      const d = new Date(currentDate);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -2 : 1);
+      const monday = new Date(d.setDate(diff));
+
       for (let i = 0; i < 5; i++) {
-        const weekDate = new Date(monday)
-        weekDate.setDate(weekDate.getDate() + i)
-        if (weekDate.toISOString().split('T')[0] === resultDate) {
+        const weekDate = new Date(monday);
+        weekDate.setDate(weekDate.getDate() + i);
+        if (weekDate.toISOString().split("T")[0] === resultDate) {
           // Already visible in calendar view
-          return 'already-viewing'
+          return "already-viewing";
         }
       }
     }
-    
+
     // Show confirmation dialog
-    setConfirmNavigation(resultDate)
-  }
+    setConfirmNavigation(resultDate);
+  };
 
   const confirmNavigationToDate = () => {
     if (confirmNavigation) {
-      onNavigateToDate(confirmNavigation)
-      setConfirmNavigation(null)
-      onClose()
+      onNavigateToDate(confirmNavigation);
+      setConfirmNavigation(null);
+      onClose();
     }
-  }
+  };
 
   const cancelNavigation = () => {
-    setConfirmNavigation(null)
-  }
+    setConfirmNavigation(null);
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="search-modal-overlay" onClick={onClose}>
@@ -137,9 +145,9 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             {searchTerm && (
-              <button 
+              <button
                 className="search-clear"
-                onClick={() => setSearchTerm('')}
+                onClick={() => setSearchTerm("")}
                 title="Clear search"
               >
                 ✕
@@ -152,49 +160,49 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
         </div>
 
         <div className="search-results">
-          {isSearching && (
-            <div className="search-loading">Searching...</div>
-          )}
+          {isSearching && <div className="search-loading">Searching...</div>}
 
           {!isSearching && searchTerm && results.length === 0 && (
             <div className="search-no-results">
               <div className="no-results-icon">🔍</div>
               <div>No results found</div>
-              <div className="no-results-hint">Try searching for a client, ticket number, date, or description</div>
+              <div className="no-results-hint">
+                Try searching for a client, ticket number, date, or description
+              </div>
             </div>
           )}
 
           {!isSearching && results.length > 0 && (
             <div className="search-results-list">
               <div className="search-results-count">
-                {results.length} result{results.length !== 1 ? 's' : ''} found
+                {results.length} result{results.length !== 1 ? "s" : ""} found
               </div>
               {results.map(({ date, entry }, index) => {
                 const isAlreadyViewing = (() => {
-                  const currentDateKey = currentDate.toISOString().split('T')[0]
-                  if (currentView === 'task' && date === currentDateKey) return true
-                  
-                  if (currentView === 'calendar') {
-                    const d = new Date(currentDate)
-                    const day = d.getDay()
-                    const diff = d.getDate() - day + (day === 0 ? -2 : 1)
-                    const monday = new Date(d.setDate(diff))
-                    
+                  const currentDateKey = currentDate.toISOString().split("T")[0];
+                  if (currentView === "task" && date === currentDateKey) return true;
+
+                  if (currentView === "calendar") {
+                    const d = new Date(currentDate);
+                    const day = d.getDay();
+                    const diff = d.getDate() - day + (day === 0 ? -2 : 1);
+                    const monday = new Date(d.setDate(diff));
+
                     for (let i = 0; i < 5; i++) {
-                      const weekDate = new Date(monday)
-                      weekDate.setDate(weekDate.getDate() + i)
-                      if (weekDate.toISOString().split('T')[0] === date) return true
+                      const weekDate = new Date(monday);
+                      weekDate.setDate(weekDate.getDate() + i);
+                      if (weekDate.toISOString().split("T")[0] === date) return true;
                     }
                   }
-                  return false
-                })()
-                
+                  return false;
+                })();
+
                 return (
-                  <div 
-                    key={`${date}-${entry.id}-${index}`} 
-                    className={`search-result-item ${isAlreadyViewing ? 'already-viewing' : 'clickable'}`}
+                  <div
+                    key={`${date}-${entry.id}-${index}`}
+                    className={`search-result-item ${isAlreadyViewing ? "already-viewing" : "clickable"}`}
                     onClick={() => !isAlreadyViewing && handleResultClick(date)}
-                    title={isAlreadyViewing ? 'Can be seen' : 'Click to navigate to this date'}
+                    title={isAlreadyViewing ? "Can be seen" : "Click to navigate to this date"}
                   >
                     <div className="search-result-header">
                       <span className="search-result-date">{formatDateForDisplay(date)}</span>
@@ -204,22 +212,17 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
                     </div>
                     {(entry.client || entry.ticket) && (
                       <div className="search-result-client">
-                        {entry.client}{entry.ticket ? `-${entry.ticket}` : ''}
+                        {entry.client}
+                        {entry.ticket ? `-${entry.ticket}` : ""}
                       </div>
                     )}
                     {entry.description && (
-                      <div className="search-result-description">
-                        {entry.description}
-                      </div>
+                      <div className="search-result-description">{entry.description}</div>
                     )}
-                    {entry.disabled && (
-                      <div className="search-result-badge">Disabled</div>
-                    )}
-                    {isAlreadyViewing && (
-                      <div className="search-result-tooltip">Can be seen</div>
-                    )}
+                    {entry.disabled && <div className="search-result-badge">Disabled</div>}
+                    {isAlreadyViewing && <div className="search-result-tooltip">Can be seen</div>}
                   </div>
-                )
+                );
               })}
             </div>
           )}
@@ -234,22 +237,29 @@ function SearchModal({ isOpen, onClose, currentDate, currentView, onNavigateToDa
             </div>
           )}
         </div>
-        
+
         {confirmNavigation && (
           <div className="search-confirmation-overlay" onClick={cancelNavigation}>
             <div className="search-confirmation-dialog" onClick={(e) => e.stopPropagation()}>
               <h3>Navigate to Date</h3>
-              <p>You are changing the day to {formatDateForDisplay(confirmNavigation)}, do you wish to continue?</p>
+              <p>
+                You are changing the day to {formatDateForDisplay(confirmNavigation)}, do you wish
+                to continue?
+              </p>
               <div className="confirmation-buttons">
-                <button className="btn-confirm" onClick={confirmNavigationToDate}>Yes</button>
-                <button className="btn-cancel-confirm" onClick={cancelNavigation}>No</button>
+                <button className="btn-confirm" onClick={confirmNavigationToDate}>
+                  Yes
+                </button>
+                <button className="btn-cancel-confirm" onClick={cancelNavigation}>
+                  No
+                </button>
               </div>
             </div>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default SearchModal
+export default SearchModal;

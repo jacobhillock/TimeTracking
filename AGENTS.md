@@ -56,6 +56,7 @@ src/
 ## Development
 
 **Use `bun` only** (not npm or yarn) for install, run, add, remove.
+
 ```bash
 bun install
 bun run build    # Production build
