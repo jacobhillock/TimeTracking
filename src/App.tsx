@@ -108,10 +108,10 @@ const parseCurrentView = (rawValue: string): ViewMode => {
 
 const parseNumber =
   (fallback: number) =>
-  (rawValue: string): number => {
-    const parsed = Number(rawValue);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  };
+    (rawValue: string): number => {
+      const parsed = Number(rawValue);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
 
 const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();
@@ -1152,9 +1152,9 @@ function App() {
     const dayEntries = entries[dateKey] || [];
     const trackedIds = disabled
       ? entryIds.filter((id) => {
-          const entry = dayEntries.find((e) => e.id === id);
-          return entry && !isEntryUntracked(entry);
-        })
+        const entry = dayEntries.find((e) => e.id === id);
+        return entry && !isEntryUntracked(entry);
+      })
       : entryIds;
     const updatedEntries = dayEntries.map((entry) => {
       if (trackedIds.includes(entry.id)) {
@@ -1539,41 +1539,6 @@ function App() {
               </CollapsibleSection>
 
               <CollapsibleSection
-                title="Tag Types"
-                sectionName="tagTypes"
-                isCollapsed={collapsedSections.tagTypes}
-                onToggle={() => toggleSection("tagTypes")}
-              >
-                <div style={{ marginBottom: "15px" }}>
-                  <input
-                    type="text"
-                    placeholder="New tag type"
-                    value={newTagType}
-                    onChange={(e) => setNewTagType(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addTagType()}
-                  />
-                  <button className="add-button" onClick={addTagType}>
-                    Add Tag Type
-                  </button>
-                </div>
-
-                {tagTypes.length > 0 ? (
-                  <ul className="client-list">
-                    {tagTypes.map((tag) => (
-                      <li key={tag} className="client-item tag-type-item">
-                        <span className="tag-type-label">{tag}</span>
-                        <button onClick={() => removeTagType(tag)}>Remove</button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
-                    No tag types configured yet
-                  </div>
-                )}
-              </CollapsibleSection>
-
-              <CollapsibleSection
                 title="Todo"
                 sectionName="todo"
                 isCollapsed={collapsedSections.todo}
@@ -1945,6 +1910,41 @@ function App() {
                     Latest time to display in calendar
                   </div>
                 </div>
+              </CollapsibleSection>
+
+              <CollapsibleSection
+                title="Tag Types"
+                sectionName="tagTypes"
+                isCollapsed={collapsedSections.tagTypes}
+                onToggle={() => toggleSection("tagTypes")}
+              >
+                <div style={{ marginBottom: "15px" }}>
+                  <input
+                    type="text"
+                    placeholder="New tag type"
+                    value={newTagType}
+                    onChange={(e) => setNewTagType(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addTagType()}
+                  />
+                  <button className="add-button" onClick={addTagType}>
+                    Add Tag Type
+                  </button>
+                </div>
+
+                {tagTypes.length > 0 ? (
+                  <ul className="client-list">
+                    {tagTypes.map((tag) => (
+                      <li key={tag} className="client-item tag-type-item">
+                        <span className="tag-type-label">{tag}</span>
+                        <button onClick={() => removeTagType(tag)}>Remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
+                    No tag types configured yet
+                  </div>
+                )}
               </CollapsibleSection>
 
               <div className="sidebar-section dark-mode-section">
