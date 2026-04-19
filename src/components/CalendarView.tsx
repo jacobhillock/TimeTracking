@@ -501,7 +501,7 @@ function CalendarView({
                       -{" "}
                       {minutesToTime(
                         Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) +
-                        intervalMinutes,
+                          intervalMinutes,
                       )}
                     </div>
                   </div>
@@ -522,7 +522,10 @@ function CalendarView({
                   entry.client && clientColors[entry.client]
                     ? clientColors[entry.client]
                     : "#2196F3";
-                const textColor = getContrastColor(clientColor, useClassicColors ? "blackWhite" : "oklch");
+                const textColor = getContrastColor(
+                  clientColor,
+                  useClassicColors ? "blackWhite" : "oklch",
+                );
                 const borderColor = adjustColorBrightness(clientColor, -30);
 
                 return (

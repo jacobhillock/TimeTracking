@@ -5,7 +5,6 @@ export function getContrastColor(hexColor: string, mode: "blackWhite" | "oklch" 
   const b = parseInt(hex.substr(4, 2), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
-
   switch (mode) {
     case "blackWhite":
       return luminance > 0.5 ? "#000000" : "#ffffff";
@@ -14,7 +13,5 @@ export function getContrastColor(hexColor: string, mode: "blackWhite" | "oklch" 
       return luminance > 0.5
         ? `oklch(from ${hexColor} ${0.3} c h)`
         : `oklch(from ${hexColor} ${0.85} c h)`;
-    default:
-      throw new Error(`Unsupported mode: ${mode}`);
   }
 }

@@ -100,10 +100,10 @@ const parseCurrentView = (rawValue: string): ViewMode => {
 
 const parseNumber =
   (fallback: number) =>
-    (rawValue: string): number => {
-      const parsed = Number(rawValue);
-      return Number.isFinite(parsed) ? parsed : fallback;
-    };
+  (rawValue: string): number => {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
 
 const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();
@@ -1149,9 +1149,9 @@ function App() {
     const dayEntries = entries[dateKey] || [];
     const trackedIds = disabled
       ? entryIds.filter((id) => {
-        const entry = dayEntries.find((e) => e.id === id);
-        return entry && !isEntryUntracked(entry);
-      })
+          const entry = dayEntries.find((e) => e.id === id);
+          return entry && !isEntryUntracked(entry);
+        })
       : entryIds;
     const updatedEntries = dayEntries.map((entry) => {
       if (trackedIds.includes(entry.id)) {
@@ -1753,7 +1753,10 @@ function App() {
                               className="color-preview"
                               style={{
                                 backgroundColor: clientColors[client] || "#2196F3",
-                                color: getContrastColor(clientColors[client] || "#2196F3", useClassicColors ? "blackWhite" : "oklch"),
+                                color: getContrastColor(
+                                  clientColors[client] || "#2196F3",
+                                  useClassicColors ? "blackWhite" : "oklch",
+                                ),
                               }}
                             >
                               Aa
@@ -1789,11 +1792,11 @@ function App() {
                       </svg>
                     </Checkbox.Indicator>
                   </Checkbox.Root>
-                  <>{
-                    useClassicColors
+                  <>
+                    {useClassicColors
                       ? "Using black and white contrast"
-                      : "Using dynamic color contrast"
-                  }</>
+                      : "Using dynamic color contrast"}
+                  </>
                 </div>
                 <div style={{ marginBottom: "20px" }}>
                   <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
