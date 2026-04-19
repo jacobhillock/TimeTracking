@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent as ReactMouseEvent } from "react";
 import type { TimeEntry } from "../services/types";
 import type { CalendarViewProps, EditableTimeEntry } from "../types/app";
+import { getContrastColor } from "./calendarViewUtilities";
 
 type ResizeEdge = "top" | "bottom";
 
@@ -24,15 +25,6 @@ interface LatestTicketOption {
   client: string;
   ticket: string;
   label: string;
-}
-
-function getContrastColor(hexColor: string): string {
-  const hex = hexColor.replace("#", "");
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#000000" : "#ffffff";
 }
 
 function adjustColorBrightness(hexColor: string, percent: number): string {
@@ -62,6 +54,7 @@ function CalendarView({
   ticketOptions,
   tagTypes,
   isEntryUntracked,
+  useClassicColors,
   style,
 }: CalendarViewProps) {
   const [dragStartRegion, setDragStartRegion] = useState<DragRegion | null>(null);
@@ -529,7 +522,10 @@ function CalendarView({
                   entry.client && clientColors[entry.client]
                     ? clientColors[entry.client]
                     : "#2196F3";
-                const textColor = getContrastColor(clientColor);
+                const textColor = getContrastColor(
+                  clientColor,
+                  useClassicColors ? "blackWhite" : "oklch",
+                );
                 const borderColor = adjustColorBrightness(clientColor, -30);
 
                 return (

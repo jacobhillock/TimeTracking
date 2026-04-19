@@ -53,6 +53,7 @@ export interface CalendarViewProps {
   ticketOptions: TicketOptionGroups;
   tagTypes: string[];
   isEntryUntracked?: (entry: TimeEntry) => boolean;
+  useClassicColors?: boolean;
   style?: CSSProperties;
 }
 

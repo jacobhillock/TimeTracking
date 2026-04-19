@@ -20,6 +20,7 @@ export const STORAGE_KEYS = {
   COLLAPSED_SECTIONS: "collapsedSections",
   PINNED_TICKETS: "pinnedTickets",
   TAG_TYPES: "tagTypes",
+  USE_CLASSIC_COLORS: "useClassicColors",
 } as const;
 
 type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

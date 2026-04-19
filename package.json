@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
+    "lint:fix": "vp lint --fix && vp fmt --write",
     "build": "vp build",
     "build:local": "INCLUDE_BASE=1 bun run build",
     "preview": "vp preview"
