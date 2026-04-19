@@ -33,6 +33,7 @@ import Toaster from "./components/Toaster";
 import { notifyErrorToast } from "./services/toastService";
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { Input } from "@base-ui-components/react/input";
+import { getContrastColor } from "./components/calendarViewUtilities";
 
 const CalendarView = lazy(() => import("./components/CalendarView"));
 const TaskView = lazy(() => import("./components/TaskView"));
@@ -93,25 +94,16 @@ interface TodoFormFieldsProps {
   ticketInputStyle?: CSSProperties;
 }
 
-function getContrastColor(hexColor: string): string {
-  const hex = hexColor.replace("#", "");
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#000000" : "#ffffff";
-}
-
 const parseCurrentView = (rawValue: string): ViewMode => {
   return rawValue === "task" || rawValue === "calendar" ? rawValue : "calendar";
 };
 
 const parseNumber =
   (fallback: number) =>
-  (rawValue: string): number => {
-    const parsed = Number(rawValue);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  };
+    (rawValue: string): number => {
+      const parsed = Number(rawValue);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
 
 const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();
@@ -394,6 +386,11 @@ function App() {
     DEFAULT_TAG_TYPES,
     { parse: parseTagTypes },
   );
+  const [useClassicColors, setUseClassicColors] = useLocalStorageState<boolean>(
+    STORAGE_KEYS.USE_CLASSIC_COLORS,
+    false,
+  );
+
   const [newClient, setNewClient] = useState("");
   const [newTagType, setNewTagType] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1152,9 +1149,9 @@ function App() {
     const dayEntries = entries[dateKey] || [];
     const trackedIds = disabled
       ? entryIds.filter((id) => {
-          const entry = dayEntries.find((e) => e.id === id);
-          return entry && !isEntryUntracked(entry);
-        })
+        const entry = dayEntries.find((e) => e.id === id);
+        return entry && !isEntryUntracked(entry);
+      })
       : entryIds;
     const updatedEntries = dayEntries.map((entry) => {
       if (trackedIds.includes(entry.id)) {
@@ -1386,6 +1383,7 @@ function App() {
                 ticketOptions={ticketOptionGroups}
                 tagTypes={tagTypes}
                 isEntryUntracked={isEntryUntracked}
+                useClassicColors={useClassicColors}
               />
             )}
           </Suspense>
@@ -1755,7 +1753,7 @@ function App() {
                               className="color-preview"
                               style={{
                                 backgroundColor: clientColors[client] || "#2196F3",
-                                color: getContrastColor(clientColors[client] || "#2196F3"),
+                                color: getContrastColor(clientColors[client] || "#2196F3", useClassicColors ? "blackWhite" : "oklch"),
                               }}
                             >
                               Aa
@@ -1774,6 +1772,29 @@ function App() {
                 isCollapsed={collapsedSections.settings}
                 onToggle={() => toggleSection("settings")}
               >
+                <div style={{ marginBottom: "20px" }}>
+                  <Checkbox.Root
+                    className="todo-checkbox"
+                    checked={useClassicColors}
+                    onCheckedChange={(checked) => setUseClassicColors(checked)}
+                    aria-label={
+                      useClassicColors
+                        ? "Using black and white contrast"
+                        : "Using dynamic color contrast"
+                    }
+                  >
+                    <Checkbox.Indicator className="todo-checkbox-indicator">
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M3.5 8.2 6.6 11 12.5 4.8" />
+                      </svg>
+                    </Checkbox.Indicator>
+                  </Checkbox.Root>
+                  <>{
+                    useClassicColors
+                      ? "Using black and white contrast"
+                      : "Using dynamic color contrast"
+                  }</>
+                </div>
                 <div style={{ marginBottom: "20px" }}>
                   <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
                     Jira Base URL
