@@ -17,7 +17,7 @@ interface HoveredTimeRange {
 }
 
 interface GridMetrics {
-  scrollHeight: number;
+  slotHeight: number;
 }
 
 interface LatestTicketOption {
@@ -65,7 +65,7 @@ function CalendarView({
   const [resizeEdge, setResizeEdge] = useState<ResizeEdge | null>(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [quickTicketSelection, setQuickTicketSelection] = useState("");
-  const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ scrollHeight: 0 });
+  const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ slotHeight: 0 });
   const gridRef = useRef<HTMLDivElement | null>(null);
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const businessWeekDates = getBusinessWeekDates();
@@ -311,27 +311,58 @@ function CalendarView({
   }, [editingEntry?.id, editingEntry?.description]);
 
   useEffect(() => {
+    let frameId: number | null = null;
+
     const updateGridMetrics = (): void => {
       const grid = gridRef.current;
       if (!grid) return;
 
+      const firstSlot = grid.querySelector<HTMLElement>(".calendar-hour-slot");
+      const slotHeight = firstSlot?.getBoundingClientRect().height ?? 0;
+
       setGridMetrics((prev) => {
-        const next = { scrollHeight: grid.scrollHeight };
-        if (prev.scrollHeight === next.scrollHeight) {
+        const next = { slotHeight };
+        if (prev.slotHeight === next.slotHeight) {
           return prev;
         }
         return next;
       });
     };
 
+    const scheduleGridMetricsUpdate = (): void => {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
+
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        updateGridMetrics();
+      });
+    };
+
     const grid = gridRef.current;
     if (!grid) return;
 
-    updateGridMetrics();
-    window.addEventListener("resize", updateGridMetrics);
+    scheduleGridMetricsUpdate();
+
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleGridMetricsUpdate();
+    });
+    resizeObserver.observe(grid);
+
+    const firstSlot = grid.querySelector<HTMLElement>(".calendar-hour-slot");
+    if (firstSlot) {
+      resizeObserver.observe(firstSlot);
+    }
+
+    window.addEventListener("resize", scheduleGridMetricsUpdate);
 
     return () => {
-      window.removeEventListener("resize", updateGridMetrics);
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener("resize", scheduleGridMetricsUpdate);
+      resizeObserver.disconnect();
     };
   }, [entries, intervalMinutes, calendarStartTime, calendarEndTime]);
 
@@ -357,23 +388,34 @@ function CalendarView({
 
   const hourMarkers = getHourMarkers();
   const { start: visibleStart, end: visibleEnd, duration: visibleDuration } = getVisibleMinutes();
+  const visibleSlotCount = hourMarkers.length;
+  const calendarContentHeight =
+    gridMetrics.slotHeight > 0
+      ? gridMetrics.slotHeight * visibleSlotCount
+      : gridRef.current?.scrollHeight ?? 0;
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const currentTimeMode =
     currentMinutes <= visibleStart ? "before" : currentMinutes >= visibleEnd ? "after" : "within";
-  const currentTimeTopPercentRaw =
+  const currentTimeTopPxRaw =
     currentTimeMode === "before"
       ? 0
       : currentTimeMode === "after"
-        ? 100
-        : ((currentMinutes - visibleStart) / visibleDuration) * 100;
-  const currentTimeTopPercent = Math.max(0, Math.min(100, currentTimeTopPercentRaw));
+        ? calendarContentHeight
+        : ((currentMinutes - visibleStart) / visibleDuration) * calendarContentHeight;
+  const currentTimeTopPx = Math.max(0, currentTimeTopPxRaw);
   const currentTimeLineTop =
-    currentTimeMode === "after" ? "calc(100% - 2px)" : `${currentTimeTopPercent}%`;
-  const currentTimeLabelTop = currentTimeMode === "before" ? "calc(0% + 4px)" : "calc(100% - 4px)";
+    currentTimeMode === "after"
+      ? `${Math.max(0, calendarContentHeight - 2)}px`
+      : `${currentTimeTopPx}px`;
+  const currentTimeLabelTop =
+    currentTimeMode === "before"
+      ? "4px"
+      : currentTimeMode === "after"
+        ? "calc(100% - 4px)"
+        : `${currentTimeTopPx}px`;
   const currentTimeLabel = minutesToTime(currentMinutes);
-  const overlayHeight =
-    gridMetrics.scrollHeight > 0 ? gridMetrics.scrollHeight : (gridRef.current?.clientHeight ?? 0);
-  const currentTimeLabelWithinTop = `${currentTimeTopPercent}%`;
+  const overlayHeight = calendarContentHeight;
+  const currentTimeLabelWithinTop = `${currentTimeTopPx}px`;
 
   const handleQuickTicketSelect = (value: string): void => {
     setQuickTicketSelection(value);
@@ -455,7 +497,6 @@ function CalendarView({
             <div
               key={min}
               className={`calendar-hour-label ${isTimeLabelInRange(min) ? "highlighted" : ""}`}
-              style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
             >
               {minutesToTime(min)} – {minutesToTime(min + intervalMinutes)}
             </div>
@@ -471,7 +512,6 @@ function CalendarView({
                 <div
                   key={min}
                   className="calendar-hour-slot"
-                  style={{ height: `${(intervalMinutes / visibleDuration) * 100}%` }}
                   onMouseDown={(e) => {
                     if (e.button === 0 && !(e.target as HTMLElement).closest(".calendar-entry")) {
                       handleSlotMouseDown(date, min);
@@ -492,8 +532,16 @@ function CalendarView({
                   <div
                     className="calendar-drag-preview"
                     style={{
-                      top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleDuration) * 100}%`,
-                      height: `calc(${((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes - Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) / visibleDuration) * 100}% - 8px)`,
+                      top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleDuration) * calendarContentHeight}px`,
+                      height: `${Math.max(
+                        0,
+                        ((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) +
+                          intervalMinutes -
+                          Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) /
+                          visibleDuration) *
+                          calendarContentHeight -
+                          8,
+                      )}px`,
                     }}
                   >
                     <div className="preview-time">
@@ -516,8 +564,10 @@ function CalendarView({
 
                 const clampedStart = Math.max(startMin, visibleStart);
                 const clampedEnd = Math.min(endMin, visibleEnd);
-                const topPercent = ((clampedStart - visibleStart) / visibleDuration) * 100;
-                const heightPercent = ((clampedEnd - clampedStart) / visibleDuration) * 100;
+                const topPx =
+                  ((clampedStart - visibleStart) / visibleDuration) * calendarContentHeight;
+                const heightPx =
+                  ((clampedEnd - clampedStart) / visibleDuration) * calendarContentHeight;
                 const clientColor =
                   entry.client && clientColors[entry.client]
                     ? clientColors[entry.client]
@@ -533,8 +583,8 @@ function CalendarView({
                     key={entry.id}
                     className={`calendar-entry ${entry.disabled ? "disabled" : ""}`}
                     style={{
-                      top: `${topPercent}%`,
-                      height: `calc(${heightPercent}% - 8px)`,
+                      top: `${topPx}px`,
+                      height: `${Math.max(0, heightPx - 8)}px`,
                       pointerEvents:
                         resizingEntry && resizingEntry.id === entry.id ? "none" : "auto",
                       backgroundColor: clientColor,
