@@ -1312,7 +1312,7 @@ function App() {
                 className={`view-button ${currentView === "task" ? "active" : ""}`}
                 onClick={() => setCurrentView("task")}
               >
-                Daily Tasks
+                Day Logs
               </button>
             </div>
             <div className="date-navigation">
