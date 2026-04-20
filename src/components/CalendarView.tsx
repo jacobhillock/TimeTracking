@@ -387,7 +387,7 @@ function CalendarView({
   };
 
   const hourMarkers = getHourMarkers();
-  const { start: visibleStart, end: visibleEnd, duration: visibleDuration } = getVisibleMinutes();
+  const { start: visibleStart, end: visibleEnd } = getVisibleMinutes();
   const visibleSlotCount = hourMarkers.length;
   const visibleRenderedDuration = visibleSlotCount * intervalMinutes;
   const calendarContentHeight =
