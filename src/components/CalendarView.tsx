@@ -392,7 +392,7 @@ function CalendarView({
   const calendarContentHeight =
     gridMetrics.slotHeight > 0
       ? gridMetrics.slotHeight * visibleSlotCount
-      : gridRef.current?.scrollHeight ?? 0;
+      : (gridRef.current?.scrollHeight ?? 0);
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const currentTimeMode =
     currentMinutes <= visibleStart ? "before" : currentMinutes >= visibleEnd ? "after" : "within";

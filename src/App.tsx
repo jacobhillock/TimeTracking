@@ -100,10 +100,10 @@ const parseCurrentView = (rawValue: string): ViewMode => {
 
 const parseNumber =
   (fallback: number) =>
-    (rawValue: string): number => {
-      const parsed = Number(rawValue);
-      return Number.isFinite(parsed) ? parsed : fallback;
-    };
+  (rawValue: string): number => {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
 
 const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();
@@ -1149,9 +1149,9 @@ function App() {
     const dayEntries = entries[dateKey] || [];
     const trackedIds = disabled
       ? entryIds.filter((id) => {
-        const entry = dayEntries.find((e) => e.id === id);
-        return entry && !isEntryUntracked(entry);
-      })
+          const entry = dayEntries.find((e) => e.id === id);
+          return entry && !isEntryUntracked(entry);
+        })
       : entryIds;
     const updatedEntries = dayEntries.map((entry) => {
       if (trackedIds.includes(entry.id)) {
