@@ -389,6 +389,7 @@ function CalendarView({
   const hourMarkers = getHourMarkers();
   const { start: visibleStart, end: visibleEnd, duration: visibleDuration } = getVisibleMinutes();
   const visibleSlotCount = hourMarkers.length;
+  const visibleRenderedDuration = visibleSlotCount * intervalMinutes;
   const calendarContentHeight =
     gridMetrics.slotHeight > 0
       ? gridMetrics.slotHeight * visibleSlotCount
@@ -401,7 +402,7 @@ function CalendarView({
       ? 0
       : currentTimeMode === "after"
         ? calendarContentHeight
-        : ((currentMinutes - visibleStart) / visibleDuration) * calendarContentHeight;
+        : ((currentMinutes - visibleStart) / visibleRenderedDuration) * calendarContentHeight;
   const currentTimeTopPx = Math.max(0, currentTimeTopPxRaw);
   const currentTimeLineTop =
     currentTimeMode === "after"
@@ -532,13 +533,13 @@ function CalendarView({
                   <div
                     className="calendar-drag-preview"
                     style={{
-                      top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleDuration) * calendarContentHeight}px`,
+                      top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleRenderedDuration) * calendarContentHeight}px`,
                       height: `${Math.max(
                         0,
                         ((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) +
                           intervalMinutes -
                           Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) /
-                          visibleDuration) *
+                          visibleRenderedDuration) *
                           calendarContentHeight -
                           8,
                       )}px`,
@@ -565,9 +566,9 @@ function CalendarView({
                 const clampedStart = Math.max(startMin, visibleStart);
                 const clampedEnd = Math.min(endMin, visibleEnd);
                 const topPx =
-                  ((clampedStart - visibleStart) / visibleDuration) * calendarContentHeight;
+                  ((clampedStart - visibleStart) / visibleRenderedDuration) * calendarContentHeight;
                 const heightPx =
-                  ((clampedEnd - clampedStart) / visibleDuration) * calendarContentHeight;
+                  ((clampedEnd - clampedStart) / visibleRenderedDuration) * calendarContentHeight;
                 const clientColor =
                   entry.client && clientColors[entry.client]
                     ? clientColors[entry.client]
