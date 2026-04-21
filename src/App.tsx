@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
-import type { CSSProperties, RefObject } from "react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
 import { migrateFromLocalStorage } from "./services/db";
 import {
   getEntriesForDay,
@@ -127,6 +127,9 @@ const parseTimeValue = (value: string): { hours: number; minutes: number } | nul
   return { hours, minutes };
 };
 
+// Mirrors --color-info in src/_colors.css; keep this in sync with getContrastColor usage.
+const DEFAULT_CLIENT_COLOR = "#2196F3";
+
 const buildDateWithTime = (baseDate: Date, timeValue: string): Date | null => {
   const parsed = parseTimeValue(timeValue);
   if (!parsed) return null;
@@ -200,6 +203,20 @@ const autoResizeTextarea = (element: HTMLTextAreaElement | null): void => {
   element.style.height = "auto";
   element.style.height = `${element.scrollHeight}px`;
 };
+
+const EMPTY_STATE_STYLE: CSSProperties = {
+  color: "var(--color-text-muted)",
+  fontSize: "14px",
+  padding: "10px",
+};
+
+interface EmptyStateProps {
+  children: ReactNode;
+}
+
+function EmptyState({ children }: EmptyStateProps) {
+  return <div style={EMPTY_STATE_STYLE}>{children}</div>;
+}
 
 function TodoFormFields({
   description,
@@ -532,7 +549,7 @@ function App() {
   }, [currentDate, currentView, isLoadingEntries, dateKey]);
 
   useEffect(() => {
-    document.body.classList.toggle("dark-mode", darkMode);
+    document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
   useEffect(() => {
@@ -1491,9 +1508,7 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
-                    No entries with client yet
-                  </div>
+                  <EmptyState>No entries with client yet</EmptyState>
                 )}
               </CollapsibleSection>
 
@@ -1530,9 +1545,7 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
-                    No pinned tickets yet
-                  </div>
+                  <EmptyState>No pinned tickets yet</EmptyState>
                 )}
               </CollapsibleSection>
 
@@ -1684,7 +1697,9 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
+                  <div
+                    style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}
+                  >
                     No todos yet
                   </div>
                 )}
@@ -1730,7 +1745,11 @@ function App() {
                               {client}
                               {clientTotals[client] && clientTotals[client] > 0 && (
                                 <span
-                                  style={{ color: "#999", fontSize: "12px", marginLeft: "8px" }}
+                                  style={{
+                                    color: "var(--color-text-muted)",
+                                    fontSize: "12px",
+                                    marginLeft: "8px",
+                                  }}
                                 >
                                   ({totalHours}h)
                                 </span>
@@ -1740,7 +1759,7 @@ function App() {
                           <div className="client-color-picker">
                             <input
                               type="color"
-                              value={clientColors[client] || "#2196F3"}
+                              value={clientColors[client] || DEFAULT_CLIENT_COLOR}
                               onChange={(e) =>
                                 setClientColors({ ...clientColors, [client]: e.target.value })
                               }
@@ -1752,9 +1771,9 @@ function App() {
                             <div
                               className="color-preview"
                               style={{
-                                backgroundColor: clientColors[client] || "#2196F3",
+                                backgroundColor: clientColors[client] || DEFAULT_CLIENT_COLOR,
                                 color: getContrastColor(
-                                  clientColors[client] || "#2196F3",
+                                  clientColors[client] || DEFAULT_CLIENT_COLOR,
                                   useClassicColors ? "blackWhite" : "oklch",
                                 ),
                               }}
@@ -1808,7 +1827,13 @@ function App() {
                     value={jiraBaseUrl}
                     onChange={(e) => setJiraBaseUrl(e.target.value)}
                   />
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Tickets will link to: {jiraBaseUrl || "(not set)"}/CLIENT-123
                   </div>
                 </div>
@@ -1822,7 +1847,13 @@ function App() {
                     value={defaultStartTime}
                     onChange={(e) => setDefaultStartTime(e.target.value)}
                   />
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     New entries will start at {defaultStartTime} (if no previous entries)
                   </div>
                 </div>
@@ -1844,7 +1875,13 @@ function App() {
                       evaluateRemindersNow(new Date());
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Shows a daily reminder to send your open email.
                   </div>
                 </div>
@@ -1866,7 +1903,13 @@ function App() {
                       evaluateRemindersNow(new Date());
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Shows a daily reminder to send your close email.
                   </div>
                 </div>
@@ -1882,7 +1925,7 @@ function App() {
                       width: "100%",
                       padding: "10px",
                       borderRadius: "4px",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--color-border)",
                     }}
                   >
                     <option value="5">5 minutes</option>
@@ -1890,7 +1933,13 @@ function App() {
                     <option value="30">30 minutes</option>
                     <option value="60">60 minutes</option>
                   </select>
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Drag precision for calendar view
                   </div>
                 </div>
@@ -1907,10 +1956,16 @@ function App() {
                       width: "100%",
                       padding: "10px",
                       borderRadius: "4px",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--color-border)",
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Earliest time to display in calendar
                   </div>
                 </div>
@@ -1927,10 +1982,16 @@ function App() {
                       width: "100%",
                       padding: "10px",
                       borderRadius: "4px",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--color-border)",
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Latest time to display in calendar
                   </div>
                 </div>
@@ -1965,7 +2026,9 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "#999", fontSize: "14px", padding: "10px" }}>
+                  <div
+                    style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}
+                  >
                     No tag types configured yet
                   </div>
                 )}

@@ -52,6 +52,7 @@ src/
 - **Todo retrieval behavior**: `getAllTodos(dateKey)` returns active todos plus todos completed on that `dateKey`.
 - **Todo indexes**: IndexedDB `todos` store supports indexed active/completed-day reads via derived fields (`completedIndex`, `completedDateIndex`) because boolean values are not valid IndexedDB keys. Query through the helpers/constants in `src/services/db.ts`.
 - **Base UI usage**: Use `@base-ui-components/react` for relevant shared primitives. Todo controls currently use Base UI `Checkbox` and `Input`; descriptions use native `textarea` with auto-resize.
+- **Theme colors**: Keep theme palette tokens in `src/_colors.css`. Prefer a small semantic token set over component-specific color aliases. Theme switching should use a root `.dark` class on `document.documentElement`, with CSS variables overridden there.
 
 ## Development
 
