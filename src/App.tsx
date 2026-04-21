@@ -1494,7 +1494,9 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}>
+                  <div
+                    style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}
+                  >
                     No entries with client yet
                   </div>
                 )}
@@ -1533,7 +1535,9 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}>
+                  <div
+                    style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}
+                  >
                     No pinned tickets yet
                   </div>
                 )}
@@ -1687,7 +1691,9 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}>
+                  <div
+                    style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}
+                  >
                     No todos yet
                   </div>
                 )}
@@ -1815,7 +1821,13 @@ function App() {
                     value={jiraBaseUrl}
                     onChange={(e) => setJiraBaseUrl(e.target.value)}
                   />
-                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Tickets will link to: {jiraBaseUrl || "(not set)"}/CLIENT-123
                   </div>
                 </div>
@@ -1829,7 +1841,13 @@ function App() {
                     value={defaultStartTime}
                     onChange={(e) => setDefaultStartTime(e.target.value)}
                   />
-                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     New entries will start at {defaultStartTime} (if no previous entries)
                   </div>
                 </div>
@@ -1851,7 +1869,13 @@ function App() {
                       evaluateRemindersNow(new Date());
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Shows a daily reminder to send your open email.
                   </div>
                 </div>
@@ -1873,7 +1897,13 @@ function App() {
                       evaluateRemindersNow(new Date());
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Shows a daily reminder to send your close email.
                   </div>
                 </div>
@@ -1897,7 +1927,13 @@ function App() {
                     <option value="30">30 minutes</option>
                     <option value="60">60 minutes</option>
                   </select>
-                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Drag precision for calendar view
                   </div>
                 </div>
@@ -1917,7 +1953,13 @@ function App() {
                       border: "1px solid var(--color-border)",
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Earliest time to display in calendar
                   </div>
                 </div>
@@ -1937,7 +1979,13 @@ function App() {
                       border: "1px solid var(--color-border)",
                     }}
                   />
-                  <div style={{ fontSize: "12px", color: "var(--color-text-muted)", marginTop: "10px" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-muted)",
+                      marginTop: "10px",
+                    }}
+                  >
                     Latest time to display in calendar
                   </div>
                 </div>
@@ -1972,7 +2020,9 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <div style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}>
+                  <div
+                    style={{ color: "var(--color-text-muted)", fontSize: "14px", padding: "10px" }}
+                  >
                     No tag types configured yet
                   </div>
                 )}
@@ -2050,4 +2100,3 @@ function App() {
 }
 
 export default App;
-
