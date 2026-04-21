@@ -256,19 +256,6 @@ body {
   line-height: 1;
 }
 
-.dark .app-toast {
-  background: var(--color-surface);
-  border-color: var(--color-border-strong);
-}
-
-.dark .app-toast-description {
-  color: var(--color-text);
-}
-
-.dark .app-toast-close {
-  color: var(--color-text-muted);
-}
-
 .time-entry input:focus,
 .time-entry select:focus {
   outline: none;
@@ -744,7 +731,7 @@ a.summary-link:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -880,7 +867,7 @@ a.summary-link:hover {
 }
 
 .search-button:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--color-hover-tint);
 }
 
 .search-modal-overlay {
@@ -889,7 +876,7 @@ a.summary-link:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -981,7 +968,7 @@ a.summary-link:hover {
 
 .search-clear:hover {
   opacity: 1;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--color-hover-tint);
 }
 
 .search-close {
@@ -997,7 +984,7 @@ a.summary-link:hover {
 
 .search-close:hover {
   opacity: 1;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--color-hover-tint);
 }
 
 .search-results {
@@ -1227,7 +1214,7 @@ a.summary-link:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--color-overlay-strong);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1273,13 +1260,12 @@ a.summary-link:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-overlay-strong);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1002;
   animation: fadeIn 0.2s ease;
-  border-color: var(--color-page-background);
 }
 
 .reminder-modal {
