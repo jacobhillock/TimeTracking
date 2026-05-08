@@ -221,15 +221,19 @@ function CalendarView({
       const updatedEntry = { ...resizingEntry };
       if (resizeEdge === "top") {
         const endMinutes = timeToMinutes(resizingEntry.endTime);
-        if (slotMinutes < endMinutes) {
-          updatedEntry.startTime = minutesToTime(slotMinutes);
+        const nextStartTime = minutesToTime(slotMinutes);
+        if (slotMinutes < endMinutes && nextStartTime !== resizingEntry.startTime) {
+          updatedEntry.startTime = nextStartTime;
+          updatedEntry.disabled = false;
           setResizingEntry(updatedEntry);
           void onUpdateEntry(updatedEntry);
         }
       } else {
         const startMinutes = timeToMinutes(resizingEntry.startTime);
-        if (slotMinutes + intervalMinutes > startMinutes) {
-          updatedEntry.endTime = minutesToTime(slotMinutes + intervalMinutes);
+        const nextEndTime = minutesToTime(slotMinutes + intervalMinutes);
+        if (slotMinutes + intervalMinutes > startMinutes && nextEndTime !== resizingEntry.endTime) {
+          updatedEntry.endTime = nextEndTime;
+          updatedEntry.disabled = false;
           setResizingEntry(updatedEntry);
           void onUpdateEntry(updatedEntry);
         }
