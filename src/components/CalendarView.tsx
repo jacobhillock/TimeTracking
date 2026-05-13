@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent as ReactMouseEvent } from "react";
 import type { TimeEntry } from "../services/types";
+import { useSettings } from "../context/SettingsContext";
 import type { CalendarViewProps, EditableTimeEntry } from "../types/app";
 import { getContrastColor } from "./calendarViewUtilities";
 
@@ -42,21 +43,23 @@ function CalendarView({
   onAddEntry,
   onUpdateEntry,
   onDeleteEntry,
-  clients,
-  clientColors,
-  defaultStartTime: _defaultStartTime,
-  intervalMinutes,
-  calendarStartTime,
-  calendarEndTime,
   onEditEntry,
   editingEntry,
   editingEntryDateKey,
   ticketOptions,
-  tagTypes,
   isEntryUntracked,
-  useClassicColors,
   style,
 }: CalendarViewProps) {
+  const {
+    clients,
+    clientColors,
+    calendarInterval: intervalMinutes,
+    calendarStartTime,
+    calendarEndTime,
+    tagTypes,
+    useClassicColors,
+  } = useSettings();
+
   const [dragStartRegion, setDragStartRegion] = useState<DragRegion | null>(null);
   const [dragCurrentRegion, setDragCurrentRegion] = useState<DragRegion | null>(null);
   const [isDragging, setIsDragging] = useState(false);

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import { migrateFromLocalStorage } from "./services/db";
+import { getJiraUrl } from "./services/jira";
 import {
   getEntriesForDay,
   getEntriesForDays,
@@ -17,16 +18,11 @@ import {
 } from "./services/todoService";
 import type { TimeEntry, Todo } from "./services/types";
 import type {
-  ClientColors,
-  CollapsedSections,
   EditableTimeEntry,
   EntriesByDate,
-  PinnedTicket,
   TicketOption,
   TicketOptionGroups,
-  ViewMode,
 } from "./types/app";
-import useLocalStorageState, { STORAGE_KEYS } from "./hooks/useLocalStorageState";
 import SearchModal from "./SearchModal";
 import CollapsibleSection from "./components/CollapsibleSection";
 import Toaster from "./components/Toaster";
@@ -34,6 +30,7 @@ import { notifyErrorToast } from "./services/toastService";
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { Input } from "@base-ui-components/react/input";
 import { getContrastColor } from "./components/calendarViewUtilities";
+import { useSettings } from "./context/SettingsContext";
 
 const CalendarView = lazy(() => import("./components/CalendarView"));
 const TaskView = lazy(() => import("./components/TaskView"));
@@ -93,17 +90,6 @@ interface TodoFormFieldsProps {
   ticketInputClassName?: string;
   ticketInputStyle?: CSSProperties;
 }
-
-const parseCurrentView = (rawValue: string): ViewMode => {
-  return rawValue === "task" || rawValue === "calendar" ? rawValue : "calendar";
-};
-
-const parseNumber =
-  (fallback: number) =>
-  (rawValue: string): number => {
-    const parsed = Number(rawValue);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  };
 
 const formatLocalDate = (date: Date): string => {
   const year = date.getFullYear();
@@ -293,8 +279,6 @@ const sortTicketOptions = (a: TicketOption, b: TicketOption): number => {
   return a.key.localeCompare(b.key);
 };
 
-const DEFAULT_TAG_TYPES = ["Admin", "Research", "Development", "Design"];
-
 const normalizeTagPart = (value: string): string => value.trim();
 
 const normalizeTagList = (values: string[]): string[] => {
@@ -315,10 +299,6 @@ const normalizeTagList = (values: string[]): string[] => {
   return normalized;
 };
 
-const parseTagTypes = (rawValue: string): string[] => {
-  return normalizeTagList(JSON.parse(rawValue) as string[]);
-};
-
 const normalizeEntryTags = <T extends TimeEntry>(entry: T): T => {
   return {
     ...entry,
@@ -327,86 +307,51 @@ const normalizeEntryTags = <T extends TimeEntry>(entry: T): T => {
 };
 
 function App() {
+  const {
+    currentView,
+    setCurrentView,
+    clients,
+    setClients,
+    clientColors,
+    setClientColors,
+    jiraBaseUrl,
+    setJiraBaseUrl,
+    defaultStartTime,
+    setDefaultStartTime,
+    calendarInterval,
+    setCalendarInterval,
+    calendarStartTime,
+    setCalendarStartTime,
+    calendarEndTime,
+    setCalendarEndTime,
+    openReminderTime,
+    setOpenReminderTime,
+    lastOpenReminderDate,
+    setLastOpenReminderDate,
+    closeReminderTime,
+    setCloseReminderTime,
+    lastCloseReminderDate,
+    setLastCloseReminderDate,
+    darkMode,
+    setDarkMode,
+    sidebarVisible,
+    setSidebarVisible,
+    collapsedSections,
+    setCollapsedSections,
+    pinnedTickets,
+    setPinnedTickets,
+    tagTypes,
+    setTagTypes,
+    useClassicColors,
+    setUseClassicColors,
+  } = useSettings();
+
   const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()));
-  const [currentView, setCurrentView] = useLocalStorageState<ViewMode>(
-    STORAGE_KEYS.CURRENT_VIEW,
-    "calendar",
-    {
-      parse: parseCurrentView,
-    },
-  );
   const [entries, setEntries] = useState<EntriesByDate>({});
   const [isLoadingEntries, setIsLoadingEntries] = useState(true);
-  const [clients, setClients] = useLocalStorageState<string[]>(STORAGE_KEYS.CLIENTS, []);
-  const [clientColors, setClientColors] = useLocalStorageState<ClientColors>(
-    STORAGE_KEYS.CLIENT_COLORS,
-    {},
-  );
-  const [jiraBaseUrl, setJiraBaseUrl] = useLocalStorageState<string>(
-    STORAGE_KEYS.JIRA_BASE_URL,
-    "",
-  );
-  const [defaultStartTime, setDefaultStartTime] = useLocalStorageState<string>(
-    STORAGE_KEYS.DEFAULT_START_TIME,
-    "09:00",
-  );
-  const [calendarInterval, setCalendarInterval] = useLocalStorageState<number>(
-    STORAGE_KEYS.CALENDAR_INTERVAL,
-    15,
-    {
-      parse: parseNumber(15),
-      serialize: (value) => String(value),
-    },
-  );
-  const [calendarStartTime, setCalendarStartTime] = useLocalStorageState<string>(
-    STORAGE_KEYS.CALENDAR_START_TIME,
-    "00:00",
-  );
-  const [calendarEndTime, setCalendarEndTime] = useLocalStorageState<string>(
-    STORAGE_KEYS.CALENDAR_END_TIME,
-    "23:59",
-  );
-  const [openReminderTime, setOpenReminderTime] = useLocalStorageState<string | null>(
-    STORAGE_KEYS.OPEN_REMINDER_TIME,
-    null,
-  );
-  const [closeReminderTime, setCloseReminderTime] = useLocalStorageState<string | null>(
-    STORAGE_KEYS.CLOSE_REMINDER_TIME,
-    null,
-  );
-  const [lastOpenReminderDate, setLastOpenReminderDate] = useLocalStorageState<string | null>(
-    STORAGE_KEYS.LAST_OPEN_REMINDER_DATE,
-    null,
-  );
-  const [lastCloseReminderDate, setLastCloseReminderDate] = useLocalStorageState<string | null>(
-    STORAGE_KEYS.LAST_CLOSE_REMINDER_DATE,
-    null,
-  );
   const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null);
   const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null);
   const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null);
-  const [darkMode, setDarkMode] = useLocalStorageState<boolean>(STORAGE_KEYS.DARK_MODE, false);
-  const [sidebarVisible, setSidebarVisible] = useLocalStorageState<boolean>(
-    STORAGE_KEYS.SIDEBAR_VISIBLE,
-    true,
-  );
-  const [collapsedSections, setCollapsedSections] = useLocalStorageState<CollapsedSections>(
-    STORAGE_KEYS.COLLAPSED_SECTIONS,
-    {},
-  );
-  const [pinnedTickets, setPinnedTickets] = useLocalStorageState<PinnedTicket[]>(
-    STORAGE_KEYS.PINNED_TICKETS,
-    [],
-  );
-  const [tagTypes, setTagTypes] = useLocalStorageState<string[]>(
-    STORAGE_KEYS.TAG_TYPES,
-    DEFAULT_TAG_TYPES,
-    { parse: parseTagTypes },
-  );
-  const [useClassicColors, setUseClassicColors] = useLocalStorageState<boolean>(
-    STORAGE_KEYS.USE_CLASSIC_COLORS,
-    false,
-  );
 
   const [newClient, setNewClient] = useState("");
   const [newTagType, setNewTagType] = useState("");
@@ -1069,13 +1014,6 @@ function App() {
       return a.key.localeCompare(b.key);
     });
 
-  const getJiraUrl = (client?: string, ticket?: string): string | undefined => {
-    if (jiraBaseUrl && client && ticket) {
-      return `${jiraBaseUrl}/${client}-${ticket}`;
-    }
-    return undefined;
-  };
-
   const getSummary = () => {
     const dayEntries = entries[dateKey] || [];
     const summary: Record<string, SummaryAccumulator> = {};
@@ -1285,7 +1223,6 @@ function App() {
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
           currentDate={currentDate}
-          currentView={currentView}
           onNavigateToDate={(date) => {
             const parsedDate = dateKeyToLocalNoon(date);
             if (parsedDate) {
@@ -1370,10 +1307,7 @@ function App() {
             {currentView === "task" ? (
               <TaskView
                 dayEntries={entries[dateKey] || []}
-                clients={clients}
-                defaultStartTime={defaultStartTime}
                 onUpdateDayEntries={(newEntries) => updateDayEntries(newEntries)}
-                getJiraUrl={getJiraUrl}
                 isEntryUntracked={isEntryUntracked}
               />
             ) : (
@@ -1385,12 +1319,6 @@ function App() {
                 onAddEntry={addCalendarEntry}
                 onUpdateEntry={updateCalendarEntry}
                 onDeleteEntry={deleteCalendarEntry}
-                clients={clients}
-                clientColors={clientColors}
-                defaultStartTime={defaultStartTime}
-                intervalMinutes={calendarInterval}
-                calendarStartTime={calendarStartTime}
-                calendarEndTime={calendarEndTime}
                 onEditEntry={(entry, dateKey) => {
                   setEditingEntry(entry);
                   setEditingEntryDateKey(dateKey ?? null);
@@ -1398,9 +1326,7 @@ function App() {
                 editingEntry={editingEntry}
                 editingEntryDateKey={editingEntryDateKey}
                 ticketOptions={ticketOptionGroups}
-                tagTypes={tagTypes}
                 isEntryUntracked={isEntryUntracked}
-                useClassicColors={useClassicColors}
               />
             )}
           </Suspense>
@@ -1438,9 +1364,9 @@ function App() {
                           }}
                         >
                           <div>
-                            {getJiraUrl(item.client, item.ticket) ? (
+                            {getJiraUrl(jiraBaseUrl, item.client, item.ticket) ? (
                               <a
-                                href={getJiraUrl(item.client, item.ticket)}
+                                href={getJiraUrl(jiraBaseUrl, item.client, item.ticket)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="summary-link"
@@ -1640,9 +1566,9 @@ function App() {
                               {todo.client && (
                                 <div className="todo-ticket">
                                   {todo.ticket ? (
-                                    getJiraUrl(todo.client, todo.ticket) ? (
+                                    getJiraUrl(jiraBaseUrl, todo.client, todo.ticket) ? (
                                       <a
-                                        href={getJiraUrl(todo.client, todo.ticket)}
+                                        href={getJiraUrl(jiraBaseUrl, todo.client, todo.ticket)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="summary-link"

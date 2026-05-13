@@ -1,15 +1,16 @@
 import type { DragEvent } from "react";
 import type { TimeEntry } from "../services/types";
+import { getJiraUrl } from "../services/jira";
+import { useSettings } from "../context/SettingsContext";
 import type { TaskViewProps } from "../types/app";
 
 function TaskView({
   dayEntries,
-  clients,
-  defaultStartTime,
   onUpdateDayEntries,
-  getJiraUrl,
   isEntryUntracked,
 }: TaskViewProps) {
+  const { clients, defaultStartTime, jiraBaseUrl } = useSettings();
+
   const updateEntry = (id: number, field: keyof TimeEntry, value: string | boolean) => {
     const index = dayEntries.findIndex((entry) => entry.id === id);
     if (index === -1) return;
@@ -176,9 +177,9 @@ function TaskView({
                 style={{ flex: 1 }}
                 disabled={entry.disabled}
               />
-              {getJiraUrl(entry.client, entry.ticket) && (
+              {getJiraUrl(jiraBaseUrl, entry.client, entry.ticket) && (
                 <a
-                  href={getJiraUrl(entry.client, entry.ticket)}
+                  href={getJiraUrl(jiraBaseUrl, entry.client, entry.ticket)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="jira-link"

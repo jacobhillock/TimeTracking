@@ -44,6 +44,7 @@ src/
 
 - **JSX vs TSX**: App/SearchModal/components are `.tsx`; services are `.ts`. Prefer TypeScript for new code.
 - **State**: React `useState`; use `useLocalStorageState` (`src/hooks/useLocalStorageState.ts`) for localStorage-backed UI settings instead of per-state sync `useEffect`s.
+- **Settings provider**: Local-storage-backed app settings now live behind `src/context/SettingsContext.tsx` and should be consumed with `useSettings()` rather than threaded through page props.
 - **Data flow**: Services read/write IndexedDB; App coordinates UI and calls services.
 - **IndexedDB helpers**: Reusable low-level DB helpers live in `src/services/db.ts`; feature services should use those instead of ad hoc `db.get`/`db.put` calls when adding new storage logic.
 - **Hooks**: Minimize hooks when possible.
