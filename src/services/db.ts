@@ -1,11 +1,17 @@
 import { openDB } from "idb";
 import type { DBSchema, IDBPDatabase, IDBPObjectStore, IDBPTransaction } from "idb";
 import type { TimeEntry, Todo } from "./types";
+import type { TimeLogSummary } from "./types";
+import { buildTimeLogSummariesByDate } from "./timeLogSummaryHelpers";
 
 const DB_NAME = "timeTrackerDB";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 export const TIME_ENTRY_STORE_NAME = "timeEntries";
 export const TIME_ENTRY_DATE_INDEX = "by-date";
+export const TIME_LOG_SUMMARY_STORE_NAME = "timeLogSummaries";
+export const TIME_LOG_SUMMARY_DATE_INDEX = "by-date";
+export const TIME_LOG_SUMMARY_CLIENT_INDEX = "by-client";
+export const TIME_LOG_SUMMARY_TICKET_INDEX = "by-ticket";
 export const TODO_STORE_NAME = "todos";
 export const TODO_INDEX_COMPLETED = "by-completed";
 export const TODO_INDEX_COMPLETED_DATE = "by-completed-date";
@@ -22,12 +28,23 @@ export interface TodoRecord extends Todo {
   completedDateIndex?: string;
 }
 
+export type TimeLogSummaryRecord = TimeLogSummary;
+
 interface TimeTrackerDB extends DBSchema {
   [TIME_ENTRY_STORE_NAME]: {
     key: number;
     value: TimeEntryRecord;
     indexes: {
       [TIME_ENTRY_DATE_INDEX]: string;
+    };
+  };
+  [TIME_LOG_SUMMARY_STORE_NAME]: {
+    key: string;
+    value: TimeLogSummaryRecord;
+    indexes: {
+      [TIME_LOG_SUMMARY_DATE_INDEX]: string;
+      [TIME_LOG_SUMMARY_CLIENT_INDEX]: string;
+      [TIME_LOG_SUMMARY_TICKET_INDEX]: string;
     };
   };
   [TODO_STORE_NAME]: {
@@ -40,7 +57,10 @@ interface TimeTrackerDB extends DBSchema {
   };
 }
 
-type StoreName = typeof TIME_ENTRY_STORE_NAME | typeof TODO_STORE_NAME;
+type StoreName =
+  | typeof TIME_ENTRY_STORE_NAME
+  | typeof TIME_LOG_SUMMARY_STORE_NAME
+  | typeof TODO_STORE_NAME;
 type StoreValue<T extends StoreName> = TimeTrackerDB[T]["value"];
 type StoreKey<T extends StoreName> = TimeTrackerDB[T]["key"];
 type StoreIndexMap<T extends StoreName> = TimeTrackerDB[T]["indexes"];
@@ -112,6 +132,20 @@ function ensureTodoIndexes(
   ensureIndex(todoStore, TODO_INDEX_COMPLETED_DATE, "completedDateIndex");
 }
 
+function ensureTimeLogSummaryStore(
+  database: IDBPDatabase<TimeTrackerDB>,
+  transaction: IDBPTransaction<TimeTrackerDB, StoreName[], "versionchange">,
+): IDBPObjectStore<any, any, typeof TIME_LOG_SUMMARY_STORE_NAME, "versionchange"> {
+  const summaryStore = database.objectStoreNames.contains(TIME_LOG_SUMMARY_STORE_NAME)
+    ? transaction.objectStore(TIME_LOG_SUMMARY_STORE_NAME)
+    : database.createObjectStore(TIME_LOG_SUMMARY_STORE_NAME, { keyPath: "id" });
+
+  ensureIndex(summaryStore, TIME_LOG_SUMMARY_DATE_INDEX, "date");
+  ensureIndex(summaryStore, TIME_LOG_SUMMARY_CLIENT_INDEX, "client");
+  ensureIndex(summaryStore, TIME_LOG_SUMMARY_TICKET_INDEX, "ticket");
+  return summaryStore;
+}
+
 function ensureTimeEntryStore(
   database: IDBPDatabase<TimeTrackerDB>,
   transaction: IDBPTransaction<TimeTrackerDB, StoreName[], "versionchange">,
@@ -134,6 +168,37 @@ function flattenLegacyTimeEntries(entriesByDate: Record<string, TimeEntry[]>): T
   }
 
   return flattened;
+}
+
+function groupTimeEntryRecordsByDate(records: TimeEntryRecord[]): Record<string, TimeEntry[]> {
+  const entriesByDate: Record<string, TimeEntry[]> = {};
+
+  for (const record of records) {
+    const dayEntries = entriesByDate[record.date] || [];
+    dayEntries.push(fromTimeEntryRecord(record));
+    entriesByDate[record.date] = dayEntries;
+  }
+
+  return entriesByDate;
+}
+
+async function rebuildTimeLogSummariesFromTimeEntries(
+  database: IDBPDatabase<TimeTrackerDB>,
+): Promise<void> {
+  const timeEntryRecords = (await database.getAll(TIME_ENTRY_STORE_NAME)) as TimeEntryRecord[];
+  const tx = database.transaction(TIME_LOG_SUMMARY_STORE_NAME, "readwrite");
+  const summaryStore = tx.objectStore(TIME_LOG_SUMMARY_STORE_NAME);
+  await summaryStore.clear();
+
+  const summaries = buildTimeLogSummariesByDate(groupTimeEntryRecordsByDate(timeEntryRecords));
+  for (const summary of summaries) {
+    await summaryStore.put({
+      ...summary,
+      description: "",
+    });
+  }
+
+  await tx.done;
 }
 
 async function migrateTimeEntryRecords(
@@ -159,6 +224,27 @@ async function migrateTimeEntryRecords(
 
   for (const record of flattenLegacyTimeEntries(legacyEntriesByDate)) {
     await timeEntryStore.put(record);
+  }
+}
+
+async function migrateTimeLogSummaries(
+  database: IDBPDatabase<TimeTrackerDB>,
+  transaction: IDBPTransaction<TimeTrackerDB, StoreName[], "versionchange">,
+): Promise<void> {
+  const summaryStore = ensureTimeLogSummaryStore(database, transaction);
+  if (!database.objectStoreNames.contains(TIME_ENTRY_STORE_NAME)) {
+    return;
+  }
+
+  const timeEntryStore = transaction.objectStore(TIME_ENTRY_STORE_NAME);
+  const timeEntryRecords = (await timeEntryStore.getAll()) as TimeEntryRecord[];
+  const summaries = buildTimeLogSummariesByDate(groupTimeEntryRecordsByDate(timeEntryRecords));
+
+  for (const summary of summaries) {
+    await summaryStore.put({
+      ...summary,
+      description: "",
+    });
   }
 }
 
@@ -199,6 +285,9 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
             ensureTimeEntryStore(db, transaction);
           }
         }
+        if (oldVersion < 7) {
+          await migrateTimeLogSummaries(db, transaction);
+        }
       },
     });
     return dbInstance;
@@ -233,6 +322,9 @@ export async function migrateFromLocalStorage(): Promise<void> {
     await Promise.all(migrationPromises);
     if (!hasFailures) {
       localStorage.removeItem("timeEntries");
+    }
+    if (!hasFailures) {
+      await rebuildTimeLogSummariesFromTimeEntries(db);
     }
     console.log("Migration from localStorage completed successfully");
   } catch (error) {

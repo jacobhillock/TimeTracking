@@ -33,12 +33,14 @@ export interface TicketOptionGroups {
 
 export interface CalendarViewProps {
   entries: EntriesByDate;
+  getSummaryDescription: (dateKey: string, client: string, ticket: string) => string;
   now: Date;
   currentDate: Date;
   onAddEntry: (specificDateKey: string, newEntry: EditableTimeEntry) => void;
   onUpdateEntry: (
-    updatedEntry: TimeEntry,
+    updatedEntry: EditableTimeEntry,
     newDateKey?: string,
+    summaryDescription?: string,
   ) => Promise<{ shouldClose: boolean }>;
   onDeleteEntry: (specificDateKey: string, entryId: number) => void;
   onEditEntry: (entry: EditableTimeEntry | null, dateKey: string | null) => void;

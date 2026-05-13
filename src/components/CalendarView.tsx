@@ -38,6 +38,7 @@ function adjustColorBrightness(hexColor: string, percent: number): string {
 
 function CalendarView({
   entries,
+  getSummaryDescription,
   now,
   currentDate,
   onAddEntry,
@@ -70,7 +71,10 @@ function CalendarView({
   const [quickTicketSelection, setQuickTicketSelection] = useState("");
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ slotHeight: 0 });
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const notesRef = useRef<HTMLTextAreaElement | null>(null);
+  const summaryDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const summaryDescriptionDirtyRef = useRef(false);
+  const [summaryDescription, setSummaryDescription] = useState("");
   const businessWeekDates = getBusinessWeekDates();
   const allTicketOptions = [
     ...ticketOptions.pinned,
@@ -161,13 +165,28 @@ function CalendarView({
     element.style.height = `${element.scrollHeight}px`;
   };
 
+  const getSummaryDescriptionSeed = (): string => {
+    if (!editingEntry) return "";
+
+    const dateKey = editingEntryDateKey || formatLocalDate(currentDate);
+    const client = editingEntry.client.trim();
+    const ticket = editingEntry.ticket.trim();
+    if (!client || !ticket) return "";
+
+    return getSummaryDescription(dateKey, client, ticket) || editingEntry.description.trim();
+  };
+
   const handleSave = async () => {
     if (!editingEntry) return;
     const { isNew: _isNew, ...entryToSave } = editingEntry;
     const targetDateKey =
       editingEntryDateKey ||
       Object.keys(entries).find((k) => entries[k]?.some((e) => e.id === entryToSave.id));
-    const result = await onUpdateEntry(entryToSave, targetDateKey);
+    const result = await onUpdateEntry(
+      entryToSave,
+      targetDateKey,
+      summaryDescription.trim() || editingEntry.description.trim(),
+    );
     if (result?.shouldClose !== false) {
       onEditEntry(null, null);
     }
@@ -314,8 +333,29 @@ function CalendarView({
   }, [editingEntry?.id]);
 
   useEffect(() => {
-    resizeDescriptionTextarea(descriptionRef.current);
+    resizeDescriptionTextarea(notesRef.current);
   }, [editingEntry?.id, editingEntry?.description]);
+
+  useEffect(() => {
+    resizeDescriptionTextarea(summaryDescriptionRef.current);
+  }, [summaryDescription]);
+
+  useEffect(() => {
+    if (!editingEntry) {
+      summaryDescriptionDirtyRef.current = false;
+      setSummaryDescription("");
+      return;
+    }
+
+    summaryDescriptionDirtyRef.current = false;
+    setSummaryDescription(getSummaryDescriptionSeed());
+  }, [editingEntry?.id, editingEntryDateKey]);
+
+  useEffect(() => {
+    if (!editingEntry) return;
+    if (summaryDescriptionDirtyRef.current) return;
+    setSummaryDescription(getSummaryDescriptionSeed());
+  }, [editingEntry?.client, editingEntry?.ticket, editingEntryDateKey, currentDate]);
 
   useEffect(() => {
     let frameId: number | null = null;
@@ -567,6 +607,7 @@ function CalendarView({
                 const startMin = timeToMinutes(entry.startTime);
                 const endMin = timeToMinutes(entry.endTime);
                 const durationHours = ((endMin - startMin) / 60).toFixed(2);
+                const notesDescription = entry.description.trim();
 
                 if (endMin < visibleStart || startMin > visibleEnd) return null;
 
@@ -620,7 +661,7 @@ function CalendarView({
                         (time: {durationHours}h)
                       </span>
                     </div>
-                    <div className="entry-description">{entry.description}</div>
+                    <div className="entry-description">{notesDescription}</div>
                     <button
                       className="entry-delete"
                       onMouseDown={(e) => e.stopPropagation()}
@@ -788,19 +829,45 @@ function CalendarView({
                 </select>
               </div>
             </div>
-            <div className="modal-field">
-              <label>Description</label>
-              <textarea
-                ref={descriptionRef}
-                value={editingEntry.description}
-                onChange={(e) =>
-                  onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)
-                }
-                onInput={(e) => resizeDescriptionTextarea(e.currentTarget)}
-                rows={1}
-                style={{ overflow: "hidden" }}
-                tabIndex={6}
-              />
+            <div
+              className="modal-grid-row"
+              style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px" }}
+            >
+              <div className="modal-field">
+                <label>Entry Notes</label>
+                <textarea
+                  ref={notesRef}
+                  value={editingEntry.description}
+                  onChange={(e) =>
+                    onEditEntry({ ...editingEntry, description: e.target.value }, editingEntryDateKey)
+                  }
+                  onInput={(e) => resizeDescriptionTextarea(e.currentTarget)}
+                  rows={1}
+                  style={{ overflow: "hidden" }}
+                  tabIndex={6}
+                />
+              </div>
+              <div className="modal-field">
+                <label>Log Description</label>
+                <textarea
+                  ref={summaryDescriptionRef}
+                  value={summaryDescription}
+                  onChange={(e) => {
+                    summaryDescriptionDirtyRef.current = true;
+                    setSummaryDescription(e.target.value);
+                  }}
+                  onInput={(e) => resizeDescriptionTextarea(e.currentTarget)}
+                  rows={1}
+                  style={{ overflow: "hidden" }}
+                  tabIndex={7}
+                  disabled={!editingEntry.client.trim() || !editingEntry.ticket.trim()}
+                  placeholder={
+                    editingEntry.client.trim() && editingEntry.ticket.trim()
+                      ? "Log description"
+                      : "Select client and ticket first"
+                  }
+                />
+              </div>
             </div>
             <div className="modal-field">
               <label>Tags</label>
@@ -808,7 +875,7 @@ function CalendarView({
                 multiple
                 value={normalizedSelectedTags}
                 onChange={handleTagSelectionChange}
-                tabIndex={7}
+                tabIndex={8}
                 size={Math.max(4, Math.min(availableTagTypes.length || 0, 8))}
                 disabled={availableTagTypes.length === 0}
               >
@@ -839,7 +906,7 @@ function CalendarView({
                       editingEntryDateKey,
                     );
                   }}
-                  tabIndex={8}
+                  tabIndex={9}
                 />
                 Logged
               </label>
@@ -849,7 +916,7 @@ function CalendarView({
                 <button
                   className="btn-cancel"
                   onClick={() => setShowCloseConfirm(true)}
-                  tabIndex={10}
+                  tabIndex={11}
                 >
                   Discard
                 </button>
@@ -857,12 +924,12 @@ function CalendarView({
                 <button
                   className="btn-cancel"
                   onClick={() => onEditEntry(null, null)}
-                  tabIndex={10}
+                  tabIndex={11}
                 >
                   Cancel
                 </button>
               )}
-              <button className="btn-save" onClick={() => void handleSave()} tabIndex={9}>
+              <button className="btn-save" onClick={() => void handleSave()} tabIndex={10}>
                 Save
               </button>
             </div>

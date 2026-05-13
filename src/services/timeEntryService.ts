@@ -12,6 +12,7 @@ import {
 } from "./db";
 import type { TimeEntry } from "./types";
 import type { IDBPObjectStore } from "idb";
+import { syncTimeLogSummariesForDay } from "./timeLogSummaryService";
 
 type ReadTimeEntryStore = IDBPObjectStore<any, any, typeof TIME_ENTRY_STORE_NAME, "readonly">;
 type WriteTimeEntryStore = IDBPObjectStore<any, any, typeof TIME_ENTRY_STORE_NAME, "readwrite">;
@@ -78,6 +79,7 @@ async function replaceEntriesForDay(date: string, entries: TimeEntry[]): Promise
   await saveDayRecords(date, records, store);
 
   await close();
+  await syncTimeLogSummariesForDay(date, entries);
 }
 
 async function upsertEntryRecord(
@@ -158,6 +160,10 @@ export async function addEntry(date: string, entry: TimeEntry): Promise<void> {
         : 0;
     await upsertEntryRecord(date, entry, nextSortOrder, store);
     await close();
+    await syncTimeLogSummariesForDay(
+      date,
+      [...existingEntries.map(fromTimeEntryRecord), entry],
+    );
   } catch (error) {
     console.error(`Failed to add entry for ${date}:`, error);
     throw new Error("Failed to add entry");
@@ -184,6 +190,7 @@ export async function updateEntry(date: string, updatedEntry: TimeEntry): Promis
     );
     await saveDayRecords(date, nextEntries, store);
     await close();
+    await syncTimeLogSummariesForDay(date, nextEntries.map(fromTimeEntryRecord));
   } catch (error) {
     console.error(`Failed to update entry for ${date}:`, error);
     throw new Error("Failed to update entry");
@@ -197,7 +204,12 @@ export async function deleteEntry(date: string, entryId: number): Promise<void> 
       return;
     }
 
+    const dayEntries = await getDayRecords(date);
     await deleteRecord(TIME_ENTRY_STORE_NAME, entryId);
+    await syncTimeLogSummariesForDay(
+      date,
+      dayEntries.filter((entry) => entry.id !== entryId).map(fromTimeEntryRecord),
+    );
   } catch (error) {
     console.error(`Failed to delete entry for ${date}:`, error);
     throw new Error("Failed to delete entry");
@@ -213,6 +225,7 @@ export async function deleteDay(date: string): Promise<void> {
       await store.delete(id);
     }
     await close();
+    await syncTimeLogSummariesForDay(date, []);
     console.log(`Deleted all entries for ${date}`);
   } catch (error) {
     console.error(`Failed to delete entries for ${date}:`, error);

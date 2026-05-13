@@ -10,13 +10,21 @@ import {
   findOverlappingEntries,
 } from "./services/timeEntryService";
 import {
+  getTimeLogSummariesForDay,
+  updateTimeLogSummaryDescription,
+} from "./services/timeLogSummaryService";
+import {
+  buildTimeLogSummariesForDate,
+  getTimeLogSummaryKey,
+} from "./services/timeLogSummaryHelpers";
+import {
   getAllTodos,
   addTodo,
   toggleTodoCompletion,
   deleteTodo,
   updateTodo,
 } from "./services/todoService";
-import type { TimeEntry, Todo } from "./services/types";
+import type { TimeEntry, TimeLogSummary, Todo } from "./services/types";
 import type {
   EditableTimeEntry,
   EntriesByDate,
@@ -47,17 +55,6 @@ interface SummaryItem {
   isUntracked: boolean;
   hours: string;
   isIndeterminate: boolean;
-}
-
-interface SummaryAccumulator {
-  client: string;
-  ticket: string;
-  minutes: number;
-  descriptions: string[];
-  allDisabled: boolean;
-  someDisabled: boolean;
-  entryIds: number[];
-  isUntracked: boolean;
 }
 
 interface OverlapConfirmState {
@@ -348,6 +345,7 @@ function App() {
 
   const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()));
   const [entries, setEntries] = useState<EntriesByDate>({});
+  const [summariesByDate, setSummariesByDate] = useState<Record<string, TimeLogSummary[]>>({});
   const [isLoadingEntries, setIsLoadingEntries] = useState(true);
   const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null);
   const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null);
@@ -494,6 +492,25 @@ function App() {
   }, [currentDate, currentView, isLoadingEntries, dateKey]);
 
   useEffect(() => {
+    if (isLoadingEntries) return;
+
+    let cancelled = false;
+    const loadSummariesForDay = async () => {
+      const daySummaries = await getTimeLogSummariesForDay(dateKey);
+
+      if (cancelled) return;
+
+      setSummariesByDate((prev) => ({ ...prev, [dateKey]: daySummaries }));
+    };
+
+    void loadSummariesForDay();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dateKey, isLoadingEntries, entries]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
@@ -629,17 +646,38 @@ function App() {
     };
   }, []);
 
+  const setDayEntriesAndSummaries = (key: string, newEntries: TimeEntry[]): void => {
+    const normalizedEntries = newEntries.map(normalizeEntryTags);
+    const existingSummariesByKey = new Map(
+      (summariesByDate[key] || [])
+        .filter((summary) => summary.date === key)
+        .map((summary) => [summary.key, summary] as const),
+    );
+    const nextSummaries = buildTimeLogSummariesForDate(key, normalizedEntries).map((summary) => {
+      const existing = existingSummariesByKey.get(summary.key);
+      if (!existing) return summary;
+
+      return {
+        ...summary,
+        description: existing.description,
+        jiraId: existing.jiraId,
+      };
+    });
+
+    setEntries((prev) => ({ ...prev, [key]: normalizedEntries }));
+    setSummariesByDate((prev) => ({ ...prev, [key]: nextSummaries }));
+
+    setEntriesForDay(key, normalizedEntries).catch((error) => {
+      console.error("Failed to sync entries to IndexedDB:", error);
+    });
+  };
+
   const updateDayEntries = (
     newEntries: TimeEntry[],
     specificDateKey: string | null = null,
   ): void => {
     const key = specificDateKey || dateKey;
-    const normalizedEntries = newEntries.map(normalizeEntryTags);
-    setEntries((prev) => ({ ...prev, [key]: normalizedEntries }));
-
-    setEntriesForDay(key, normalizedEntries).catch((error) => {
-      console.error("Failed to sync entries to IndexedDB:", error);
-    });
+    setDayEntriesAndSummaries(key, newEntries);
   };
 
   const addCalendarEntry = (specificDateKey: string, newEntry: EditableTimeEntry): void => {
@@ -660,11 +698,10 @@ function App() {
     const { entry, fromDateKey, toDateKey } = showOverlapConfirm;
     try {
       await moveEntry(fromDateKey, toDateKey, entry);
-      setEntries((prev) => ({
-        ...prev,
-        [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== entry.id),
-        [toDateKey]: [...(prev[toDateKey] || []), entry],
-      }));
+      const nextFromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== entry.id);
+      const nextToEntries = [...(entries[toDateKey] || []), entry];
+      setDayEntriesAndSummaries(fromDateKey, nextFromEntries);
+      setDayEntriesAndSummaries(toDateKey, nextToEntries);
       setShowOverlapConfirm(null);
       setEditingEntry(null);
       setEditingEntryDateKey(null);
@@ -674,9 +711,25 @@ function App() {
     }
   };
 
+  const updateSummaryDescription = async (
+    dateKeyToUse: string,
+    entry: TimeEntry,
+    summaryDescription?: string,
+  ): Promise<void> => {
+    const client = entry.client.trim();
+    const ticket = entry.ticket.trim();
+    if (!client || !ticket || summaryDescription === undefined) return;
+
+    const nextDescription = summaryDescription.trim();
+    await updateTimeLogSummaryDescription(dateKeyToUse, client, ticket, nextDescription);
+    const refreshedSummaries = await getTimeLogSummariesForDay(dateKeyToUse);
+    setSummariesByDate((prev) => ({ ...prev, [dateKeyToUse]: refreshedSummaries }));
+  };
+
   const updateCalendarEntry = async (
-    updatedEntry: TimeEntry,
+    updatedEntry: EditableTimeEntry,
     newDateKey?: string,
+    summaryDescription?: string,
   ): Promise<{ shouldClose: boolean }> => {
     const updatedEntryForSave = normalizeEntryTags(updatedEntry);
     let fromDateKey: string | null = null;
@@ -700,6 +753,7 @@ function App() {
         const updated = [...dayEntries];
         updated[index] = updatedEntryForSave;
         updateDayEntries(updated, fromDateKey);
+        void updateSummaryDescription(fromDateKey, updatedEntryForSave, summaryDescription);
       }
       return { shouldClose: true };
     }
@@ -712,11 +766,11 @@ function App() {
 
     try {
       await moveEntry(fromDateKey, targetDateKey, updatedEntryForSave);
-      setEntries((prev) => ({
-        ...prev,
-        [fromDateKey]: (prev[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id),
-        [targetDateKey]: [...(prev[targetDateKey] || []), updatedEntryForSave],
-      }));
+      const nextFromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id);
+      const nextToEntries = [...(entries[targetDateKey] || []), updatedEntryForSave];
+      setDayEntriesAndSummaries(fromDateKey, nextFromEntries);
+      setDayEntriesAndSummaries(targetDateKey, nextToEntries);
+      void updateSummaryDescription(targetDateKey, updatedEntryForSave, summaryDescription);
       return { shouldClose: true };
     } catch (error) {
       console.error("Failed to move entry:", error);
@@ -1014,55 +1068,98 @@ function App() {
       return a.key.localeCompare(b.key);
     });
 
+  const getSummaryDescriptionForEntry = (dateKey: string, client: string, ticket: string): string => {
+    const normalizedClient = client.trim();
+    const normalizedTicket = ticket.trim();
+    if (!normalizedClient || !normalizedTicket) return "";
+
+    const summaryKey = getTimeLogSummaryKey(normalizedClient, normalizedTicket);
+    const storedSummary = (summariesByDate[dateKey] || []).find((summary) => summary.key === summaryKey);
+    return storedSummary?.description || "";
+  };
+
   const getSummary = () => {
     const dayEntries = entries[dateKey] || [];
-    const summary: Record<string, SummaryAccumulator> = {};
+    const daySummaries = summariesByDate[dateKey] || [];
+    const trackedEntryGroups = daySummaries.map((summary) => {
+      const groupEntries = dayEntries.filter((entry) => {
+        const client = entry.client.trim();
+        const ticket = entry.ticket.trim();
+        return (
+          client === summary.client.trim() &&
+          ticket === summary.ticket.trim() &&
+          Boolean(entry.startTime) &&
+          Boolean(entry.endTime)
+        );
+      });
+
+      return {
+        summary,
+        entries: groupEntries,
+      };
+    });
+    const untrackedGroups = new Map<string, TimeEntry[]>();
 
     dayEntries.forEach((entry) => {
-      if (entry.client && entry.startTime && entry.endTime) {
-        const ticketTrim = entry.ticket ? entry.ticket.trim() : "";
-        const key = ticketTrim
-          ? `${entry.client}-${ticketTrim}`
-          : `${entry.client}-untracked-${entry.id}`;
-        const isUntracked = !ticketTrim;
-
-        const [startH, startM] = entry.startTime.split(":").map(Number);
-        const [endH, endM] = entry.endTime.split(":").map(Number);
-        const start = startH * 60 + startM;
-        const end = endH * 60 + endM;
-        const minutes = end - start;
-
-        if (!summary[key]) {
-          summary[key] = {
-            client: entry.client,
-            ticket: ticketTrim,
-            minutes: 0,
-            descriptions: [],
-            allDisabled: true,
-            someDisabled: false,
-            entryIds: [],
-            isUntracked,
-          };
-        }
-        summary[key].minutes += minutes;
-        summary[key].entryIds.push(entry.id);
-        if (!entry.disabled) {
-          summary[key].allDisabled = false;
-        } else {
-          summary[key].someDisabled = true;
-        }
-        if (entry.description && entry.description.trim()) {
-          summary[key].descriptions.push(entry.description.trim());
-        }
+      const client = entry.client.trim();
+      const ticket = entry.ticket.trim();
+      if (!client || !entry.startTime || !entry.endTime) {
+        return;
       }
+
+      if (ticket) {
+        return;
+      }
+
+      const key = `${client}-untracked-${entry.id}`;
+      untrackedGroups.set(key, [entry]);
     });
 
-    const summaryArray = Object.entries(summary).map(([key, data]) => ({
-      key,
-      ...data,
-      hours: (data.minutes / 60).toFixed(2),
-      isIndeterminate: data.someDisabled && !data.allDisabled,
-    }));
+    const summaryArray: SummaryItem[] = [];
+
+    trackedEntryGroups.forEach(({ summary, entries: groupEntries }) => {
+      const descriptionSource = summary.description.trim();
+      const totalMinutes = summary.totalMinutes;
+      const allDisabled =
+        groupEntries.length > 0 ? groupEntries.every((entry) => entry.disabled) : summary.logged;
+      const someDisabled =
+        groupEntries.length > 0 ? groupEntries.some((entry) => entry.disabled) : summary.logged;
+
+      summaryArray.push({
+        key: summary.key,
+        client: summary.client,
+        ticket: summary.ticket,
+        minutes: totalMinutes,
+        descriptions: descriptionSource ? [descriptionSource] : [],
+        allDisabled,
+        someDisabled,
+        entryIds: groupEntries.map((entry) => entry.id),
+        isUntracked: false,
+        hours: (totalMinutes / 60).toFixed(2),
+        isIndeterminate: someDisabled && !allDisabled,
+      });
+    });
+
+    untrackedGroups.forEach((groupEntries, key) => {
+      const entry = groupEntries[0];
+      const [startH, startM] = entry.startTime.split(":").map(Number);
+      const [endH, endM] = entry.endTime.split(":").map(Number);
+      const minutes = endH * 60 + endM - (startH * 60 + startM);
+      const descriptions = entry.description.trim() ? [entry.description.trim()] : [];
+      summaryArray.push({
+        key,
+        client: entry.client,
+        ticket: "",
+        minutes,
+        descriptions,
+        allDisabled: entry.disabled,
+        someDisabled: entry.disabled,
+        entryIds: [entry.id],
+        isUntracked: true,
+        hours: (minutes / 60).toFixed(2),
+        isIndeterminate: false,
+      });
+    });
 
     return summaryArray.sort((a, b) => {
       if (a.allDisabled === b.allDisabled) return 0;
@@ -1314,6 +1411,7 @@ function App() {
               <CalendarView
                 style={{ height: `calc(100% - ${headerHeight}px)` }}
                 entries={entries}
+                getSummaryDescription={getSummaryDescriptionForEntry}
                 now={now}
                 currentDate={currentDate}
                 onAddEntry={addCalendarEntry}
@@ -1397,20 +1495,20 @@ function App() {
                           </div>
                         </div>
                         {item.descriptions.length > 0 && (
-                          <ul style={{ marginTop: "8px", paddingLeft: "20px", width: "100%" }}>
-                            {item.descriptions
-                              .flatMap((desc) =>
-                                desc
-                                  .split(/[;\n]/)
-                                  .map((part) => part.trim())
-                                  .filter((part) => part.length > 0),
-                              )
-                              .map((desc, idx) => (
-                                <li key={idx} className="summary-description">
-                                  {desc}
-                                </li>
-                              ))}
-                          </ul>
+                          <pre
+                            className="summary-description"
+                            style={{
+                              marginTop: "8px",
+                              width: "100%",
+                              whiteSpace: "pre-wrap",
+                              fontFamily: "inherit",
+                              background: "transparent",
+                              border: "none",
+                              marginBottom: 0,
+                            }}
+                          >
+                            {item.descriptions[0]}
+                          </pre>
                         )}
                         {!item.isUntracked && (
                           <div style={{ position: "absolute", bottom: "10px", right: "10px" }}>
