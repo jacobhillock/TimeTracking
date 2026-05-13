@@ -41,27 +41,16 @@ export interface CalendarViewProps {
     newDateKey?: string,
   ) => Promise<{ shouldClose: boolean }>;
   onDeleteEntry: (specificDateKey: string, entryId: number) => void;
-  clients: string[];
-  clientColors: ClientColors;
-  defaultStartTime: string;
-  intervalMinutes: number;
-  calendarStartTime: string;
-  calendarEndTime: string;
   onEditEntry: (entry: EditableTimeEntry | null, dateKey: string | null) => void;
   editingEntry: EditableTimeEntry | null;
   editingEntryDateKey: string | null;
   ticketOptions: TicketOptionGroups;
-  tagTypes: string[];
   isEntryUntracked?: (entry: TimeEntry) => boolean;
-  useClassicColors?: boolean;
   style?: CSSProperties;
 }
 
 export interface TaskViewProps {
   dayEntries: TimeEntry[];
-  clients: string[];
-  defaultStartTime: string;
   onUpdateDayEntries: (newEntries: TimeEntry[]) => void;
-  getJiraUrl: (client?: string, ticket?: string) => string | undefined;
   isEntryUntracked: (entry: TimeEntry) => boolean;
 }

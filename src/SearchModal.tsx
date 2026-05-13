@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import debounce from "lodash/debounce";
 import type { DebouncedFunc } from "lodash";
 import type { SearchResult } from "./services/searchService";
+import { useSettings } from "./context/SettingsContext";
 import { searchEntries, formatDateForDisplay } from "./services/searchService";
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentDate: Date;
-  currentView: "task" | "calendar";
   onNavigateToDate: (date: string) => void;
 }
 
@@ -16,9 +16,9 @@ function SearchModal({
   isOpen,
   onClose,
   currentDate,
-  currentView,
   onNavigateToDate,
 }: SearchModalProps) {
+  const { currentView } = useSettings();
   const [searchTerm, setSearchTerm] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
