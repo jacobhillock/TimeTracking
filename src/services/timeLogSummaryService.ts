@@ -10,6 +10,7 @@ import {
 import type { TimeEntry, TimeLogSummary } from "./types";
 import {
   buildTimeLogSummariesForDate,
+  getTimeLogSummaryKey,
   getTimeLogSummaryId,
 } from "./timeLogSummaryHelpers";
 
@@ -82,15 +83,13 @@ export async function setTimeLogSummariesForDay(
   const summaries = buildTimeLogSummariesForDate(date, entries).map((summary) => {
     const existing = existingSummariesByKey.get(summary.key);
     if (!existing) {
-      return {
-        ...summary,
-        description: "",
-      };
+      return summary;
     }
+    const existingDescription = existing.description.trim();
 
     return {
       ...summary,
-      description: existing.description,
+      description: existingDescription || summary.description,
       jiraId: existing.jiraId,
       logged: summary.logged,
     };
@@ -114,16 +113,22 @@ export async function updateTimeLogSummaryDescription(
   description: string,
 ): Promise<void> {
   const summaryId = getTimeLogSummaryId(date, client, ticket);
+  const summaryKey = getTimeLogSummaryKey(client, ticket);
   const [tx, close] = await getTx(TIME_LOG_SUMMARY_STORE_NAME, "readwrite");
   const store = tx.objectStore(TIME_LOG_SUMMARY_STORE_NAME);
   const summary = (await store.get(summaryId)) as TimeLogSummaryRecord | undefined;
 
-  if (summary) {
-    await store.put({
-      ...summary,
-      description,
-    });
-  }
+  await store.put({
+    id: summaryId,
+    key: summary?.key || summaryKey,
+    client,
+    ticket,
+    date,
+    description,
+    logged: summary?.logged || false,
+    totalMinutes: summary?.totalMinutes || 0,
+    jiraId: summary?.jiraId,
+  });
 
   await close();
 }

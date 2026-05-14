@@ -656,10 +656,11 @@ function App() {
     const nextSummaries = buildTimeLogSummariesForDate(key, normalizedEntries).map((summary) => {
       const existing = existingSummariesByKey.get(summary.key);
       if (!existing) return summary;
+      const existingDescription = existing.description.trim();
 
       return {
         ...summary,
-        description: existing.description,
+        description: existingDescription || summary.description,
         jiraId: existing.jiraId,
       };
     });
