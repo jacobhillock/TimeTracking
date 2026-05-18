@@ -71,6 +71,8 @@ function CalendarView({
   const [quickTicketSelection, setQuickTicketSelection] = useState("");
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ slotHeight: 0 });
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const dragStartRegionRef = useRef<DragRegion | null>(null);
+  const dragCurrentRegionRef = useRef<DragRegion | null>(null);
   const notesRef = useRef<HTMLTextAreaElement | null>(null);
   const summaryDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const resizingEntryRef = useRef<EditableTimeEntry | null>(null);
@@ -235,8 +237,11 @@ function CalendarView({
   };
 
   const handleSlotMouseDown = (date: Date, slotMinutes: number): void => {
-    setDragStartRegion({ date, minutes: slotMinutes });
-    setDragCurrentRegion({ date, minutes: slotMinutes });
+    const startRegion = { date, minutes: slotMinutes };
+    dragStartRegionRef.current = startRegion;
+    dragCurrentRegionRef.current = startRegion;
+    setDragStartRegion(startRegion);
+    setDragCurrentRegion(startRegion);
     setIsDragging(true);
   };
 
@@ -266,8 +271,10 @@ function CalendarView({
       return;
     }
 
-    if (!isDragging || !dragStartRegion) return;
-    setDragCurrentRegion({ date, minutes: slotMinutes });
+    if (!isDragging || !dragStartRegionRef.current) return;
+    const currentRegion = { date, minutes: slotMinutes };
+    dragCurrentRegionRef.current = currentRegion;
+    setDragCurrentRegion(currentRegion);
   };
 
   const handleMouseUp = () => {
@@ -282,16 +289,20 @@ function CalendarView({
       return;
     }
 
-    if (!isDragging || !dragStartRegion || !dragCurrentRegion) {
+    if (!isDragging || !dragStartRegionRef.current || !dragCurrentRegionRef.current) {
       setDragStartRegion(null);
       setDragCurrentRegion(null);
+      dragStartRegionRef.current = null;
+      dragCurrentRegionRef.current = null;
       setIsDragging(false);
       return;
     }
 
-    const startMin = Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes);
-    const endMin = Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) + intervalMinutes;
-    const dateKey = formatLocalDate(dragStartRegion.date);
+    const startMin = Math.min(dragStartRegionRef.current.minutes, dragCurrentRegionRef.current.minutes);
+    const endMin =
+      Math.max(dragStartRegionRef.current.minutes, dragCurrentRegionRef.current.minutes) +
+      intervalMinutes;
+    const dateKey = formatLocalDate(dragStartRegionRef.current.date);
 
     const newEntry: EditableTimeEntry = {
       id: Date.now(),
@@ -309,6 +320,8 @@ function CalendarView({
     onEditEntry(newEntry, dateKey);
     setDragStartRegion(null);
     setDragCurrentRegion(null);
+    dragStartRegionRef.current = null;
+    dragCurrentRegionRef.current = null;
     setIsDragging(false);
   };
 
@@ -329,14 +342,14 @@ function CalendarView({
   };
 
   useEffect(() => {
-    if (resizingEntry) {
+    if (isDragging) {
       const handleUp = () => handleMouseUp();
       window.addEventListener("mouseup", handleUp);
       return () => {
         window.removeEventListener("mouseup", handleUp);
       };
     }
-  }, [resizingEntry, resizeEdge]);
+  }, [isDragging, resizeEdge]);
 
   useEffect(() => {
     setQuickTicketSelection("");
@@ -582,18 +595,30 @@ function CalendarView({
               ))}
 
               {isDragging &&
-                dragStartRegion &&
-                dragCurrentRegion &&
-                formatLocalDate(dragStartRegion.date) === dateKey && (
+                dragStartRegionRef.current &&
+                dragCurrentRegionRef.current &&
+                formatLocalDate(dragStartRegionRef.current.date) === dateKey && (
                   <div
                     className="calendar-drag-preview"
                     style={{
-                      top: `${((Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes) - visibleStart) / visibleRenderedDuration) * calendarContentHeight}px`,
+                      top: `${((Math.min(
+                        dragStartRegionRef.current.minutes,
+                        dragCurrentRegionRef.current.minutes,
+                      ) -
+                        visibleStart) /
+                        visibleRenderedDuration) *
+                        calendarContentHeight}px`,
                       height: `${Math.max(
                         0,
-                        ((Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) +
+                        ((Math.max(
+                          dragStartRegionRef.current.minutes,
+                          dragCurrentRegionRef.current.minutes,
+                        ) +
                           intervalMinutes -
-                          Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes)) /
+                          Math.min(
+                            dragStartRegionRef.current.minutes,
+                            dragCurrentRegionRef.current.minutes,
+                          )) /
                           visibleRenderedDuration) *
                           calendarContentHeight -
                           8,
@@ -601,10 +626,18 @@ function CalendarView({
                     }}
                   >
                     <div className="preview-time">
-                      {minutesToTime(Math.min(dragStartRegion.minutes, dragCurrentRegion.minutes))}{" "}
+                      {minutesToTime(
+                        Math.min(
+                          dragStartRegionRef.current.minutes,
+                          dragCurrentRegionRef.current.minutes,
+                        ),
+                      )}{" "}
                       -{" "}
                       {minutesToTime(
-                        Math.max(dragStartRegion.minutes, dragCurrentRegion.minutes) +
+                        Math.max(
+                          dragStartRegionRef.current.minutes,
+                          dragCurrentRegionRef.current.minutes,
+                        ) +
                           intervalMinutes,
                       )}
                     </div>
