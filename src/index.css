@@ -671,9 +671,12 @@ a.summary-link:hover {
 .entry-description {
   font-size: 11px;
   opacity: 0.85;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin: 0;
+  width: 100%;
+  white-space: pre-wrap;
+  font-family: inherit;
+  background: transparent;
+  border: none;
 }
 
 .entry-delete {

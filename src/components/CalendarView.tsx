@@ -712,7 +712,9 @@ function CalendarView({
                         (time: {durationHours}h)
                       </span>
                     </div>
-                    <div className="entry-description">{notesDescription}</div>
+                    {notesDescription && (
+                      <pre className="entry-description">{notesDescription}</pre>
+                    )}
                     <button
                       className="entry-delete"
                       onMouseDown={(e) => e.stopPropagation()}
