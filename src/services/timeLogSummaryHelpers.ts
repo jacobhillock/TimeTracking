@@ -113,3 +113,27 @@ export function buildTimeLogSummariesByDate(
 
   return summaries;
 }
+
+export function mergeTimeLogSummariesForDate(
+  date: string,
+  entries: TimeEntry[],
+  existingSummaries: TimeLogSummary[],
+): TimeLogSummary[] {
+  const existingSummariesByKey = new Map(existingSummaries.map((summary) => [summary.key, summary] as const));
+
+  return buildTimeLogSummariesForDate(date, entries).map((summary) => {
+    const existing = existingSummariesByKey.get(summary.key);
+    if (!existing) {
+      return summary;
+    }
+
+    const existingDescription = existing.description.trim();
+
+    return {
+      ...summary,
+      description: existingDescription || summary.description,
+      jiraId: existing.jiraId,
+      logged: summary.logged,
+    };
+  });
+}

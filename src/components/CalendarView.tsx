@@ -73,6 +73,8 @@ function CalendarView({
   const gridRef = useRef<HTMLDivElement | null>(null);
   const notesRef = useRef<HTMLTextAreaElement | null>(null);
   const summaryDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const resizingEntryRef = useRef<EditableTimeEntry | null>(null);
+  const resizeStartEntryRef = useRef<TimeEntry | null>(null);
   const summaryDescriptionDirtyRef = useRef(false);
   const [summaryDescription, setSummaryDescription] = useState("");
   const businessWeekDates = getBusinessWeekDates();
@@ -239,25 +241,26 @@ function CalendarView({
   };
 
   const handleSlotMouseEnterDrag = (date: Date, slotMinutes: number): void => {
-    if (resizingEntry && resizeEdge) {
-      const updatedEntry = { ...resizingEntry };
+    const currentResizingEntry = resizingEntryRef.current;
+    if (currentResizingEntry && resizeEdge) {
+      const updatedEntry = { ...currentResizingEntry };
       if (resizeEdge === "top") {
-        const endMinutes = timeToMinutes(resizingEntry.endTime);
+        const endMinutes = timeToMinutes(currentResizingEntry.endTime);
         const nextStartTime = minutesToTime(slotMinutes);
-        if (slotMinutes < endMinutes && nextStartTime !== resizingEntry.startTime) {
+        if (slotMinutes < endMinutes && nextStartTime !== currentResizingEntry.startTime) {
           updatedEntry.startTime = nextStartTime;
           updatedEntry.disabled = false;
+          resizingEntryRef.current = updatedEntry;
           setResizingEntry(updatedEntry);
-          void onUpdateEntry(updatedEntry);
         }
       } else {
-        const startMinutes = timeToMinutes(resizingEntry.startTime);
+        const startMinutes = timeToMinutes(currentResizingEntry.startTime);
         const nextEndTime = minutesToTime(slotMinutes + intervalMinutes);
-        if (slotMinutes + intervalMinutes > startMinutes && nextEndTime !== resizingEntry.endTime) {
+        if (slotMinutes + intervalMinutes > startMinutes && nextEndTime !== currentResizingEntry.endTime) {
           updatedEntry.endTime = nextEndTime;
           updatedEntry.disabled = false;
+          resizingEntryRef.current = updatedEntry;
           setResizingEntry(updatedEntry);
-          void onUpdateEntry(updatedEntry);
         }
       }
       return;
@@ -268,10 +271,14 @@ function CalendarView({
   };
 
   const handleMouseUp = () => {
-    if (resizingEntry) {
+    if (resizingEntryRef.current) {
+      const draftEntry = resizingEntryRef.current;
+      void onUpdateEntry({ ...draftEntry });
       setResizingEntry(null);
       setResizeEdge(null);
       setIsDragging(false);
+      resizingEntryRef.current = null;
+      resizeStartEntryRef.current = null;
       return;
     }
 
@@ -313,7 +320,10 @@ function CalendarView({
   ): void => {
     e.stopPropagation();
     e.preventDefault();
-    setResizingEntry({ ...entry, dateKey });
+    const nextEntry = { ...entry, dateKey };
+    resizeStartEntryRef.current = entry;
+    resizingEntryRef.current = nextEntry;
+    setResizingEntry(nextEntry);
     setResizeEdge(edge);
     setIsDragging(true);
   };
@@ -537,8 +547,6 @@ function CalendarView({
       <div
         className="calendar-grid"
         ref={gridRef}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
       >
         <div className="calendar-time-column">
           {hourMarkers.map((min) => (
@@ -604,10 +612,14 @@ function CalendarView({
                 )}
 
               {dayEntries.map((entry) => {
-                const startMin = timeToMinutes(entry.startTime);
-                const endMin = timeToMinutes(entry.endTime);
+                const displayEntry =
+                  resizingEntryRef.current && resizingEntryRef.current.id === entry.id
+                    ? resizingEntryRef.current
+                    : entry;
+                const startMin = timeToMinutes(displayEntry.startTime);
+                const endMin = timeToMinutes(displayEntry.endTime);
                 const durationHours = ((endMin - startMin) / 60).toFixed(2);
-                const notesDescription = entry.description.trim();
+                const notesDescription = displayEntry.description.trim();
 
                 if (endMin < visibleStart || startMin > visibleEnd) return null;
 
@@ -635,7 +647,9 @@ function CalendarView({
                       top: `${topPx}px`,
                       height: `${Math.max(0, heightPx - 8)}px`,
                       pointerEvents:
-                        resizingEntry && resizingEntry.id === entry.id ? "none" : "auto",
+                        resizingEntryRef.current && resizingEntryRef.current.id === entry.id
+                          ? "none"
+                          : "auto",
                       backgroundColor: clientColor,
                       color: textColor,
                       borderColor,
@@ -643,7 +657,7 @@ function CalendarView({
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onEditEntry(entry, dateKey);
+                      onEditEntry(displayEntry, dateKey);
                     }}
                     onMouseEnter={() => handleEntryMouseEnter(entry)}
                     onMouseLeave={() => setHoveredTimeRange(null)}
@@ -651,12 +665,16 @@ function CalendarView({
                     <div
                       className="entry-resize-handle entry-resize-top"
                       onMouseDown={(e) => handleResizeMouseDown(e, entry, "top", dateKey)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
                       title="Drag to adjust start time"
                       style={{ pointerEvents: "auto", backgroundColor: borderColor }}
                     />
                     <div className="entry-client">
-                      {entry.client}
-                      {entry.ticket ? `-${entry.ticket}` : ""}{" "}
+                      {displayEntry.client}
+                      {displayEntry.ticket ? `-${displayEntry.ticket}` : ""}{" "}
                       <span style={{ fontSize: "0.85em", opacity: 0.8 }}>
                         (time: {durationHours}h)
                       </span>
@@ -676,6 +694,10 @@ function CalendarView({
                     <div
                       className="entry-resize-handle entry-resize-bottom"
                       onMouseDown={(e) => handleResizeMouseDown(e, entry, "bottom", dateKey)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
                       title="Drag to adjust end time"
                       style={{ pointerEvents: "auto", backgroundColor: borderColor }}
                     />

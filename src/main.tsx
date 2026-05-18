@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { SettingsProvider } from "./context/SettingsContext";
+import { TimeDataProvider } from "./context/TimeDataContext";
 import "./_colors.css";
 import "./index.css";
 
@@ -14,7 +15,9 @@ if (!rootElement) {
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <SettingsProvider>
-      <App />
+      <TimeDataProvider>
+        <App />
+      </TimeDataProvider>
     </SettingsProvider>
   </React.StrictMode>,
 );

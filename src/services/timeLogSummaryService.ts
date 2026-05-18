@@ -12,6 +12,7 @@ import {
   buildTimeLogSummariesForDate,
   getTimeLogSummaryKey,
   getTimeLogSummaryId,
+  mergeTimeLogSummariesForDate,
 } from "./timeLogSummaryHelpers";
 
 export async function getTimeLogSummaryForEntry(
@@ -79,21 +80,7 @@ export async function setTimeLogSummariesForDay(
   const [tx, close] = await getTx(TIME_LOG_SUMMARY_STORE_NAME, "readwrite");
   const store = tx.objectStore(TIME_LOG_SUMMARY_STORE_NAME);
   const existingSummaries = (await store.index(TIME_LOG_SUMMARY_DATE_INDEX).getAll(date)) as TimeLogSummaryRecord[];
-  const existingSummariesByKey = new Map(existingSummaries.map((summary) => [summary.key, summary] as const));
-  const summaries = buildTimeLogSummariesForDate(date, entries).map((summary) => {
-    const existing = existingSummariesByKey.get(summary.key);
-    if (!existing) {
-      return summary;
-    }
-    const existingDescription = existing.description.trim();
-
-    return {
-      ...summary,
-      description: existingDescription || summary.description,
-      jiraId: existing.jiraId,
-      logged: summary.logged,
-    };
-  });
+  const summaries = mergeTimeLogSummariesForDate(date, entries, existingSummaries);
 
   for (const summary of existingSummaries) {
     await store.delete(summary.id);

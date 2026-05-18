@@ -1,33 +1,10 @@
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
-import { migrateFromLocalStorage } from "./services/db";
 import { getJiraUrl } from "./services/jira";
-import {
-  getEntriesForDay,
-  getEntriesForDays,
-  setEntriesForDay,
-  moveEntry,
-  findOverlappingEntries,
-} from "./services/timeEntryService";
-import {
-  getTimeLogSummariesForDay,
-  updateTimeLogSummaryDescription,
-} from "./services/timeLogSummaryService";
-import {
-  buildTimeLogSummariesForDate,
-  getTimeLogSummaryKey,
-} from "./services/timeLogSummaryHelpers";
-import {
-  getAllTodos,
-  addTodo,
-  toggleTodoCompletion,
-  deleteTodo,
-  updateTodo,
-} from "./services/todoService";
-import type { TimeEntry, TimeLogSummary, Todo } from "./services/types";
+import { getTimeLogSummaryKey } from "./services/timeLogSummaryHelpers";
+import type { TimeEntry } from "./services/types";
 import type {
   EditableTimeEntry,
-  EntriesByDate,
   TicketOption,
   TicketOptionGroups,
 } from "./types/app";
@@ -39,6 +16,7 @@ import { Checkbox } from "@base-ui-components/react/checkbox";
 import { Input } from "@base-ui-components/react/input";
 import { getContrastColor } from "./components/calendarViewUtilities";
 import { useSettings } from "./context/SettingsContext";
+import { useTimeData } from "./context/TimeDataContext";
 
 const CalendarView = lazy(() => import("./components/CalendarView"));
 const TaskView = lazy(() => import("./components/TaskView"));
@@ -303,6 +281,11 @@ const normalizeEntryTags = <T extends TimeEntry>(entry: T): T => {
   };
 };
 
+const timeToMinutes = (value: string): number => {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
 function App() {
   const {
     currentView,
@@ -342,11 +325,24 @@ function App() {
     useClassicColors,
     setUseClassicColors,
   } = useSettings();
+  const {
+    entries,
+    summariesByDate,
+    todos,
+    isLoadingEntries,
+    loadEntriesForDay,
+    loadEntriesForDays,
+    loadSummariesForDay,
+    loadTodosForDate,
+    replaceDayEntries,
+    updateSummaryDescription,
+    addTodo: addTodoItem,
+    toggleTodoCompletion: toggleTodoCompletionItem,
+    deleteTodo: deleteTodoItem,
+    updateTodo: updateTodoItem,
+  } = useTimeData();
 
   const [currentDate, setCurrentDate] = useState(() => toLocalNoon(new Date()));
-  const [entries, setEntries] = useState<EntriesByDate>({});
-  const [summariesByDate, setSummariesByDate] = useState<Record<string, TimeLogSummary[]>>({});
-  const [isLoadingEntries, setIsLoadingEntries] = useState(true);
   const [editingEntry, setEditingEntry] = useState<EditableTimeEntry | null>(null);
   const [editingEntryDateKey, setEditingEntryDateKey] = useState<string | null>(null);
   const [showOverlapConfirm, setShowOverlapConfirm] = useState<OverlapConfirmState | null>(null);
@@ -358,7 +354,6 @@ function App() {
   const [activeReminder, setActiveReminder] = useState<"open" | "close" | null>(null);
   const [clickedSummary, setClickedSummary] = useState<SummaryItem | null>(null);
   const [showLogPrompt, setShowLogPrompt] = useState(false);
-  const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodoDescription, setNewTodoDescription] = useState("");
   const [newTodoClient, setNewTodoClient] = useState("");
   const [newTodoTicket, setNewTodoTicket] = useState("");
@@ -417,50 +412,13 @@ function App() {
   }, [clickedSummary]);
 
   useEffect(() => {
-    async function initializeDB() {
-      try {
-        await migrateFromLocalStorage();
-        console.log("Database initialized and migration complete");
-      } catch (error) {
-        console.error("Failed to initialize database:", error);
-        notifyErrorToast(
-          "Initialization failed",
-          "Failed to initialize database. Attempting local fallback.",
-        );
-        const saved = localStorage.getItem("timeEntries");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-              setEntries(parsed as EntriesByDate);
-            }
-          } catch (parseError) {
-            console.warn("Failed to parse legacy localStorage timeEntries", parseError);
-            notifyErrorToast(
-              "Recovery failed",
-              "Could not parse legacy time entries from local storage.",
-            );
-          }
-        }
-      } finally {
-        setIsLoadingEntries(false);
-      }
-    }
-
-    void initializeDB();
-  }, []);
-
-  useEffect(() => {
     async function loadCurrentDayEntries() {
       if (isLoadingEntries) return;
 
       if (currentView === "task") {
         // Task view: load only current day
         if (!entries[dateKey]) {
-          const dayEntries = await getEntriesForDay(dateKey);
-          if (dayEntries.length > 0) {
-            setEntries((prev) => ({ ...prev, [dateKey]: dayEntries }));
-          }
+          await loadEntriesForDay(dateKey);
         }
       } else if (currentView === "calendar") {
         // Calendar view: load business week
@@ -480,35 +438,29 @@ function App() {
         const datesToFetch = weekDates.filter((date) => !entries[date]);
 
         if (datesToFetch.length > 0) {
-          const weekEntries = await getEntriesForDays(datesToFetch);
-          if (Object.keys(weekEntries).length > 0) {
-            setEntries((prev) => ({ ...prev, ...weekEntries }));
-          }
+          await loadEntriesForDays(datesToFetch);
         }
       }
     }
 
     void loadCurrentDayEntries();
-  }, [currentDate, currentView, isLoadingEntries, dateKey]);
+  }, [currentDate, currentView, isLoadingEntries, dateKey, entries, loadEntriesForDay, loadEntriesForDays]);
 
   useEffect(() => {
     if (isLoadingEntries) return;
 
     let cancelled = false;
-    const loadSummariesForDay = async () => {
-      const daySummaries = await getTimeLogSummariesForDay(dateKey);
-
+    const loadSummaryDataForDay = async () => {
+      await loadSummariesForDay(dateKey);
       if (cancelled) return;
-
-      setSummariesByDate((prev) => ({ ...prev, [dateKey]: daySummaries }));
     };
 
-    void loadSummariesForDay();
+    void loadSummaryDataForDay();
 
     return () => {
       cancelled = true;
     };
-  }, [dateKey, isLoadingEntries, entries]);
+  }, [dateKey, isLoadingEntries, loadSummariesForDay]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -573,11 +525,10 @@ function App() {
 
   useEffect(() => {
     const loadTodos = async () => {
-      const filteredTodos = await getAllTodos(dateKey);
-      setTodos(filteredTodos);
+      await loadTodosForDate(dateKey);
     };
     void loadTodos();
-  }, [dateKey]);
+  }, [dateKey, loadTodosForDate]);
 
   useEffect(() => {
     autoResizeTextarea(newTodoDescriptionRef.current);
@@ -602,18 +553,9 @@ function App() {
     let cancelled = false;
     const loadRecentEntries = async () => {
       try {
-        const recentEntries = await getEntriesForDays(missingDateKeys);
         if (cancelled) return;
 
-        setEntries((prev) => {
-          const next = { ...prev };
-          missingDateKeys.forEach((key) => {
-            if (next[key] === undefined) {
-              next[key] = recentEntries[key] || [];
-            }
-          });
-          return next;
-        });
+        await loadEntriesForDays(missingDateKeys);
       } catch (error) {
         missingDateKeys.forEach((key) => loadedRecentDateKeysRef.current.delete(key));
         console.error("Failed to load recent entries:", error);
@@ -647,28 +589,7 @@ function App() {
   }, []);
 
   const setDayEntriesAndSummaries = (key: string, newEntries: TimeEntry[]): void => {
-    const normalizedEntries = newEntries.map(normalizeEntryTags);
-    const existingSummariesByKey = new Map(
-      (summariesByDate[key] || [])
-        .filter((summary) => summary.date === key)
-        .map((summary) => [summary.key, summary] as const),
-    );
-    const nextSummaries = buildTimeLogSummariesForDate(key, normalizedEntries).map((summary) => {
-      const existing = existingSummariesByKey.get(summary.key);
-      if (!existing) return summary;
-      const existingDescription = existing.description.trim();
-
-      return {
-        ...summary,
-        description: existingDescription || summary.description,
-        jiraId: existing.jiraId,
-      };
-    });
-
-    setEntries((prev) => ({ ...prev, [key]: normalizedEntries }));
-    setSummariesByDate((prev) => ({ ...prev, [key]: nextSummaries }));
-
-    setEntriesForDay(key, normalizedEntries).catch((error) => {
+    void replaceDayEntries(key, newEntries).catch((error) => {
       console.error("Failed to sync entries to IndexedDB:", error);
     });
   };
@@ -698,11 +619,10 @@ function App() {
     if (!showOverlapConfirm) return;
     const { entry, fromDateKey, toDateKey } = showOverlapConfirm;
     try {
-      await moveEntry(fromDateKey, toDateKey, entry);
       const nextFromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== entry.id);
       const nextToEntries = [...(entries[toDateKey] || []), entry];
-      setDayEntriesAndSummaries(fromDateKey, nextFromEntries);
-      setDayEntriesAndSummaries(toDateKey, nextToEntries);
+      await replaceDayEntries(fromDateKey, nextFromEntries);
+      await replaceDayEntries(toDateKey, nextToEntries);
       setShowOverlapConfirm(null);
       setEditingEntry(null);
       setEditingEntryDateKey(null);
@@ -710,21 +630,6 @@ function App() {
       console.error("Failed to move entry after overlap confirmation:", error);
       notifyErrorToast("Move failed", "Could not move the entry. Please try again.");
     }
-  };
-
-  const updateSummaryDescription = async (
-    dateKeyToUse: string,
-    entry: TimeEntry,
-    summaryDescription?: string,
-  ): Promise<void> => {
-    const client = entry.client.trim();
-    const ticket = entry.ticket.trim();
-    if (!client || !ticket || summaryDescription === undefined) return;
-
-    const nextDescription = summaryDescription.trim();
-    await updateTimeLogSummaryDescription(dateKeyToUse, client, ticket, nextDescription);
-    const refreshedSummaries = await getTimeLogSummariesForDay(dateKeyToUse);
-    setSummariesByDate((prev) => ({ ...prev, [dateKeyToUse]: refreshedSummaries }));
   };
 
   const updateCalendarEntry = async (
@@ -759,18 +664,25 @@ function App() {
       return { shouldClose: true };
     }
 
-    const overlapping = await findOverlappingEntries(targetDateKey, updatedEntryForSave);
+    const targetEntries = entries[targetDateKey] || [];
+    const overlapping = targetEntries.filter((entry) => {
+      if (entry.id === updatedEntry.id) return false;
+      const updatedStart = timeToMinutes(updatedEntryForSave.startTime);
+      const updatedEnd = timeToMinutes(updatedEntryForSave.endTime);
+      const entryStart = timeToMinutes(entry.startTime);
+      const entryEnd = timeToMinutes(entry.endTime);
+      return updatedStart < entryEnd && entryStart < updatedEnd;
+    });
     if (overlapping.length > 0) {
       setShowOverlapConfirm({ entry: updatedEntryForSave, fromDateKey, toDateKey: targetDateKey });
       return { shouldClose: false };
     }
 
     try {
-      await moveEntry(fromDateKey, targetDateKey, updatedEntryForSave);
       const nextFromEntries = (entries[fromDateKey] || []).filter((e) => e.id !== updatedEntry.id);
       const nextToEntries = [...(entries[targetDateKey] || []), updatedEntryForSave];
-      setDayEntriesAndSummaries(fromDateKey, nextFromEntries);
-      setDayEntriesAndSummaries(targetDateKey, nextToEntries);
+      await replaceDayEntries(fromDateKey, nextFromEntries);
+      await replaceDayEntries(targetDateKey, nextToEntries);
       void updateSummaryDescription(targetDateKey, updatedEntryForSave, summaryDescription);
       return { shouldClose: true };
     } catch (error) {
@@ -812,16 +724,13 @@ function App() {
 
   const handleAddTodo = async () => {
     if (newTodoDescription.trim()) {
-      const newTodo = await addTodo(
+      const newTodo = await addTodoItem(
         newTodoDescription.trim(),
+        dateKey,
         newTodoClient.trim() || undefined,
         newTodoTicket.trim() || undefined,
-        dateKey,
       );
       if (newTodo) {
-        console.log("Todo added:", newTodo);
-        const filteredTodos = await getAllTodos(dateKey);
-        setTodos(filteredTodos);
         setNewTodoDescription("");
         setNewTodoClient("");
         setNewTodoTicket("");
@@ -830,27 +739,14 @@ function App() {
   };
 
   const handleToggleTodo = async (id: number): Promise<void> => {
-    console.log("Toggling todo:", id);
-    const success = await toggleTodoCompletion(id);
-    console.log("Toggle result:", success);
-    if (success) {
-      const filteredTodos = await getAllTodos(dateKey);
-      console.log("Refetched todos:", filteredTodos);
-      setTodos(filteredTodos);
-    }
+    await toggleTodoCompletionItem(id, dateKey);
   };
 
   const handleDeleteTodo = async (id: number): Promise<void> => {
-    console.log("Deleting todo:", id);
-    const success = await deleteTodo(id);
-    console.log("Delete result:", success);
-    if (success) {
-      const filteredTodos = await getAllTodos(dateKey);
-      setTodos(filteredTodos);
-    }
+    await deleteTodoItem(id, dateKey);
   };
 
-  const handleStartEditTodo = (todo: Todo): void => {
+  const handleStartEditTodo = (todo: { id: number; description: string; client?: string; ticket?: string }): void => {
     setEditingTodoId(todo.id);
     setEditTodoDescription(todo.description);
     setEditTodoClient(todo.client || "");
@@ -860,15 +756,14 @@ function App() {
   const handleSaveEditTodo = async () => {
     if (editingTodoId === null) return;
     if (editTodoDescription.trim()) {
-      const success = await updateTodo(
+      const success = await updateTodoItem(
         editingTodoId,
         editTodoDescription.trim(),
+        dateKey,
         editTodoClient.trim() || undefined,
         editTodoTicket.trim() || undefined,
       );
       if (success) {
-        const filteredTodos = await getAllTodos(dateKey);
-        setTodos(filteredTodos);
         setEditingTodoId(null);
         setEditTodoDescription("");
         setEditTodoClient("");
