@@ -83,6 +83,15 @@ function CalendarView({
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
+  const todayDateKey = formatLocalDate(new Date());
+  const selectedDateKey = formatLocalDate(currentDate);
+
+  const getDayColumnClassName = (dateKey: string, baseClass: string): string => {
+    const classes = [baseClass];
+    if (dateKey === todayDateKey) classes.push("calendar-day-today");
+    if (dateKey === selectedDateKey) classes.push("calendar-day-selected");
+    return classes.join(" ");
+  };
   const timeToMinutes = (timeStr: string): number => {
     const [h, m] = timeStr.split(":").map(Number);
     return h * 60 + m;
@@ -486,12 +495,15 @@ function CalendarView({
     <div className="calendar-view" style={style}>
       <div className="calendar-header">
         <div className="calendar-time-column"></div>
-        {businessWeekDates.map((date) => (
-          <div key={formatLocalDate(date)} className="calendar-day-header">
-            <div className="day-name">{date.toLocaleDateString("en-US", { weekday: "short" })}</div>
-            <div className="day-date">{date.getDate()}</div>
-          </div>
-        ))}
+        {businessWeekDates.map((date) => {
+          const dateKey = formatLocalDate(date);
+          return (
+            <div key={dateKey} className={getDayColumnClassName(dateKey, "calendar-day-header")}>
+              <div className="day-name">{date.toLocaleDateString("en-US", { weekday: "short" })}</div>
+              <div className="day-date">{date.getDate()}</div>
+            </div>
+          );
+        })}
       </div>
 
       <div
@@ -515,7 +527,7 @@ function CalendarView({
           const dateKey = formatLocalDate(date);
           const dayEntries = entries[dateKey] || [];
           return (
-            <div key={dateKey} className="calendar-day-column">
+            <div key={dateKey} className={getDayColumnClassName(dateKey, "calendar-day-column")}>
               {hourMarkers.map((min) => (
                 <div
                   key={min}
