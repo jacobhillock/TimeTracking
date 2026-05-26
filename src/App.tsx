@@ -184,6 +184,21 @@ const toTicketKey = (client: string, ticket: string): string =>
 const toTicketKeyLookup = (client: string, ticket: string): string =>
   toTicketKey(client, ticket).toLowerCase();
 
+const renderTicketKeyLink = (
+  jiraBaseUrl: string,
+  client: string,
+  ticket: string,
+  key: string,
+): ReactNode => {
+  const url = getJiraUrl(jiraBaseUrl, client, ticket);
+  if (!url) return key;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="summary-link">
+      {key}
+    </a>
+  );
+};
+
 const autoResizeTextarea = (element: HTMLTextAreaElement | null): void => {
   if (!element) return;
   element.style.height = "auto";
@@ -1450,9 +1465,25 @@ function App() {
                       <li key={ticket.key} className="client-item pinned-ticket-item">
                         <div className="pinned-ticket-header">
                           <span className="pinned-ticket-label">
-                            {ticket.friendlyName?.trim()
-                              ? `${ticket.friendlyName.trim()} (${ticket.key})`
-                              : ticket.key}
+                            {ticket.friendlyName?.trim() ? (
+                              <>
+                                {ticket.friendlyName.trim()} (
+                                {renderTicketKeyLink(
+                                  jiraBaseUrl,
+                                  ticket.client,
+                                  ticket.ticket,
+                                  ticket.key,
+                                )}
+                                )
+                              </>
+                            ) : (
+                              renderTicketKeyLink(
+                                jiraBaseUrl,
+                                ticket.client,
+                                ticket.ticket,
+                                ticket.key,
+                              )
+                            )}
                           </span>
                           <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
                         </div>
