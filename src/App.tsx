@@ -398,6 +398,7 @@ function App() {
   const windowWasBlurred = useRef<boolean>(false);
   const friendlyNameTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const loadedRecentDateKeysRef = useRef<Set<string>>(new Set());
+  const logPromptConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
 
   openReminderTimeRef.current = openReminderTime;
   closeReminderTimeRef.current = closeReminderTime;
@@ -406,6 +407,12 @@ function App() {
   activeReminderRef.current = activeReminder;
 
   const dateKey = formatLocalDate(currentDate);
+
+  useEffect(() => {
+    if (showLogPrompt) {
+      logPromptConfirmButtonRef.current?.focus();
+    }
+  }, [showLogPrompt]);
 
   useEffect(() => {
     const handleBlur = () => {
@@ -2025,7 +2032,11 @@ function App() {
                 >
                   No
                 </button>
-                <button className="btn-save" onClick={handleMarkAsLogged}>
+                <button
+                  ref={logPromptConfirmButtonRef}
+                  className="btn-save"
+                  onClick={handleMarkAsLogged}
+                >
                   Yes, Mark as Logged
                 </button>
               </div>

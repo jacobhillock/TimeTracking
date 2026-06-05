@@ -852,6 +852,12 @@ a.summary-link:hover {
   color: var(--color-text-inverse);
 }
 
+.btn-save:focus,
+.btn-save:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: 2px;
+}
+
 .btn-save:hover {
   background: var(--color-success-hover);
 }
