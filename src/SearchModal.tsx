@@ -12,12 +12,7 @@ interface SearchModalProps {
   onNavigateToDate: (date: string) => void;
 }
 
-function SearchModal({
-  isOpen,
-  onClose,
-  currentDate,
-  onNavigateToDate,
-}: SearchModalProps) {
+function SearchModal({ isOpen, onClose, currentDate, onNavigateToDate }: SearchModalProps) {
   const { currentView } = useSettings();
   const [searchTerm, setSearchTerm] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);

@@ -33,7 +33,6 @@ import { getContrastColor } from "./components/calendarViewUtilities";
 import { useSettings } from "./context/SettingsContext";
 
 const CalendarView = lazy(() => import("./components/CalendarView"));
-const TaskView = lazy(() => import("./components/TaskView"));
 
 interface SummaryItem {
   key: string;
@@ -324,7 +323,6 @@ const normalizeEntryTags = <T extends TimeEntry>(entry: T): T => {
 function App() {
   const {
     currentView,
-    setCurrentView,
     clients,
     setClients,
     clientColors,
@@ -478,36 +476,26 @@ function App() {
     async function loadCurrentDayEntries() {
       if (isLoadingEntries) return;
 
-      if (currentView === "task") {
-        // Task view: load only current day
-        if (!entries[dateKey]) {
-          const dayEntries = await getEntriesForDay(dateKey);
-          if (dayEntries.length > 0) {
-            setEntries((prev) => ({ ...prev, [dateKey]: dayEntries }));
-          }
-        }
-      } else if (currentView === "calendar") {
-        // Calendar view: load business week
-        const d = new Date(currentDate);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -2 : 1);
-        const monday = new Date(d.setDate(diff));
-        const weekDates = [];
+      // Calendar view: load business week
+      const d = new Date(currentDate);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -2 : 1);
+      const monday = new Date(d.setDate(diff));
+      const weekDates = [];
 
-        for (let i = 0; i < 5; i++) {
-          const date = new Date(monday);
-          date.setDate(date.getDate() + i);
-          weekDates.push(formatLocalDate(date));
-        }
+      for (let i = 0; i < 5; i++) {
+        const date = new Date(monday);
+        date.setDate(date.getDate() + i);
+        weekDates.push(formatLocalDate(date));
+      }
 
-        // Only fetch dates we don't have yet
-        const datesToFetch = weekDates.filter((date) => !entries[date]);
+      // Only fetch dates we don't have yet
+      const datesToFetch = weekDates.filter((date) => !entries[date]);
 
-        if (datesToFetch.length > 0) {
-          const weekEntries = await getEntriesForDays(datesToFetch);
-          if (Object.keys(weekEntries).length > 0) {
-            setEntries((prev) => ({ ...prev, ...weekEntries }));
-          }
+      if (datesToFetch.length > 0) {
+        const weekEntries = await getEntriesForDays(datesToFetch);
+        if (Object.keys(weekEntries).length > 0) {
+          setEntries((prev) => ({ ...prev, ...weekEntries }));
         }
       }
     }
@@ -1277,20 +1265,7 @@ function App() {
           </button>
           <div className="header" ref={headerRef}>
             <h1>Time Tracker</h1>
-            <div className="view-toggle">
-              <button
-                className={`view-button ${currentView === "calendar" ? "active" : ""}`}
-                onClick={() => setCurrentView("calendar")}
-              >
-                Calendar
-              </button>
-              <button
-                className={`view-button ${currentView === "task" ? "active" : ""}`}
-                onClick={() => setCurrentView("task")}
-              >
-                Day Logs
-              </button>
-            </div>
+
             <div className="date-navigation">
               <button onClick={() => changeDate(-1)}>← Previous</button>
               <span>{formatDate(currentDate)}</span>
@@ -1326,31 +1301,23 @@ function App() {
           </div>
 
           <Suspense fallback={<div className="total-hours">Loading view...</div>}>
-            {currentView === "task" ? (
-              <TaskView
-                dayEntries={entries[dateKey] || []}
-                onUpdateDayEntries={(newEntries) => updateDayEntries(newEntries)}
-                isEntryUntracked={isEntryUntracked}
-              />
-            ) : (
-              <CalendarView
-                style={{ height: `calc(100% - ${headerHeight}px)` }}
-                entries={entries}
-                now={now}
-                currentDate={currentDate}
-                onAddEntry={addCalendarEntry}
-                onUpdateEntry={updateCalendarEntry}
-                onDeleteEntry={deleteCalendarEntry}
-                onEditEntry={(entry, dateKey) => {
-                  setEditingEntry(entry);
-                  setEditingEntryDateKey(dateKey ?? null);
-                }}
-                editingEntry={editingEntry}
-                editingEntryDateKey={editingEntryDateKey}
-                ticketOptions={ticketOptionGroups}
-                isEntryUntracked={isEntryUntracked}
-              />
-            )}
+            <CalendarView
+              style={{ height: `calc(100% - ${headerHeight}px)` }}
+              entries={entries}
+              now={now}
+              currentDate={currentDate}
+              onAddEntry={addCalendarEntry}
+              onUpdateEntry={updateCalendarEntry}
+              onDeleteEntry={deleteCalendarEntry}
+              onEditEntry={(entry, dateKey) => {
+                setEditingEntry(entry);
+                setEditingEntryDateKey(dateKey ?? null);
+              }}
+              editingEntry={editingEntry}
+              editingEntryDateKey={editingEntryDateKey}
+              ticketOptions={ticketOptionGroups}
+              isEntryUntracked={isEntryUntracked}
+            />
           </Suspense>
         </div>
 
