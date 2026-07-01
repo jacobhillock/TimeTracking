@@ -8,9 +8,9 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: docker://ghcr.io/actions/checkout@v4
+      - uses: ghcr.io/actions/checkout@v4
 
-      - uses: docker://ghcr.io/voidzero-dev/setup-vp@v1
+      - uses: ghcr.io/voidzero-dev/setup-vp@v1
         with:
           cache: true
 
@@ -20,9 +20,9 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: docker://ghcr.io/actions/checkout@v4
+      - uses: ghcr.io/actions/checkout@v4
 
-      - uses: docker://ghcr.io/voidzero-dev/setup-vp@v1
+      - uses: ghcr.io/voidzero-dev/setup-vp@v1
         with:
           cache: true
 
