@@ -3,7 +3,6 @@ import type { CSSProperties, ReactNode, RefObject } from "react";
 import { migrateFromLocalStorage } from "./services/db";
 import { getJiraUrl } from "./services/jira";
 import {
-  getEntriesForDay,
   getEntriesForDays,
   setEntriesForDay,
   moveEntry,
