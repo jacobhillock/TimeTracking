@@ -6,7 +6,7 @@
     "dev": "vp dev",
     "lint:fix": "vp lint --fix && vp fmt --write",
     "build": "vp build",
-    "build:local": "INCLUDE_BASE=1 bun run build",
+    "build:local": "INCLUDE_BASE=1 pnpm run build",
     "preview": "vp preview"
   },
   "dependencies": {
@@ -17,8 +17,8 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@types/lodash": "^4.17.24",
+    "@types/node": "^26.0.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
@@ -33,5 +33,5 @@
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
-  "packageManager": "bun@1.3.11"
+  "packageManager": "pnpm@11.8.0"
 }

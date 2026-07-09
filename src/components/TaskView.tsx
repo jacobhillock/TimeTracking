@@ -4,11 +4,7 @@ import { getJiraUrl } from "../services/jira";
 import { useSettings } from "../context/SettingsContext";
 import type { TaskViewProps } from "../types/app";
 
-function TaskView({
-  dayEntries,
-  onUpdateDayEntries,
-  isEntryUntracked,
-}: TaskViewProps) {
+function TaskView({ dayEntries, onUpdateDayEntries, isEntryUntracked }: TaskViewProps) {
   const { clients, defaultStartTime, jiraBaseUrl } = useSettings();
 
   const updateEntry = (id: number, field: keyof TimeEntry, value: string | boolean) => {

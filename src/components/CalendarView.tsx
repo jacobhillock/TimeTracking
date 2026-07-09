@@ -499,7 +499,9 @@ function CalendarView({
           const dateKey = formatLocalDate(date);
           return (
             <div key={dateKey} className={getDayColumnClassName(dateKey, "calendar-day-header")}>
-              <div className="day-name">{date.toLocaleDateString("en-US", { weekday: "short" })}</div>
+              <div className="day-name">
+                {date.toLocaleDateString("en-US", { weekday: "short" })}
+              </div>
               <div className="day-date">{date.getDate()}</div>
             </div>
           );
