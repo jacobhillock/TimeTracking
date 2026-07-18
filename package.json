@@ -24,7 +24,8 @@
     "@vitejs/plugin-react": "^5.0.4",
     "baseline-browser-mapping": "^2.10.0",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vite-plus": "latest"
+    "vite-plus": "latest",
+    "wrangler": "^4.112.0"
   },
   "peerDependencies": {
     "typescript": "^5"

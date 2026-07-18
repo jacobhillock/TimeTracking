@@ -1,29 +1,40 @@
-name: CI
+# .github/workflows/lint.yml
+name: Lint
 
 on:
   push:
+    branches-ignore:
+      - "main"
+      - "master"
+  pull_request:
+    branches-ignore:
+      - "main"
+      - "master"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  format:
-    name: Format
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: ghcr.io/actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: ghcr.io/voidzero-dev/setup-vp@v1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          cache: true
+          version: 11.7.0
 
-      - run: vp fmt --check .
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: ghcr.io/actions/checkout@v4
-
-      - uses: ghcr.io/voidzero-dev/setup-vp@v1
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          cache: true
+          node-version: 24
+          cache: pnpm
 
-      - run: vp build
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Run lint
+        run: pnpm run lint
