@@ -19,6 +19,7 @@ import type { TimeEntry, Todo } from "./services/types";
 import type {
   EditableTimeEntry,
   EntriesByDate,
+  PinnedTicket,
   TicketOption,
   TicketOptionGroups,
 } from "./types/app";
@@ -380,6 +381,8 @@ function App() {
   const [editTodoDescription, setEditTodoDescription] = useState("");
   const [editTodoClient, setEditTodoClient] = useState("");
   const [editTodoTicket, setEditTodoTicket] = useState("");
+  const [editingPinnedTicketKey, setEditingPinnedTicketKey] = useState<string | null>(null);
+  const [editPinnedTicketNumber, setEditPinnedTicketNumber] = useState("");
   const newTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const editTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({});
@@ -898,6 +901,64 @@ function App() {
       updatePinnedFriendlyName(key, value);
       delete friendlyNameTimersRef.current[key];
     }, 300);
+  };
+
+  const handleStartEditPinnedTicket = (ticket: PinnedTicket): void => {
+    setEditingPinnedTicketKey(ticket.key);
+    setEditPinnedTicketNumber(ticket.ticket);
+  };
+
+  const handleCancelEditPinnedTicket = (): void => {
+    setEditingPinnedTicketKey(null);
+    setEditPinnedTicketNumber("");
+  };
+
+  const handleSaveEditPinnedTicket = (): void => {
+    if (!editingPinnedTicketKey) return;
+
+    const currentTicket = pinnedTickets.find((ticket) => ticket.key === editingPinnedTicketKey);
+    const trimmedTicket = normalizeTicketPart(editPinnedTicketNumber);
+    if (!currentTicket) {
+      handleCancelEditPinnedTicket();
+      return;
+    }
+    if (!trimmedTicket) {
+      notifyErrorToast("Invalid ticket number", "A pinned ticket must have a ticket number.");
+      return;
+    }
+
+    const nextKey = toTicketKey(currentTicket.client, trimmedTicket);
+    const duplicate = pinnedTickets.some(
+      (ticket) =>
+        ticket.key !== currentTicket.key &&
+        toTicketKeyLookup(ticket.client, ticket.ticket) ===
+          toTicketKeyLookup(currentTicket.client, trimmedTicket),
+    );
+    if (duplicate) {
+      notifyErrorToast("Ticket already pinned", "That ticket is already in your pinned tickets.");
+      return;
+    }
+
+    if (friendlyNameTimersRef.current[currentTicket.key]) {
+      clearTimeout(friendlyNameTimersRef.current[currentTicket.key]);
+      delete friendlyNameTimersRef.current[currentTicket.key];
+    }
+    const friendlyName = friendlyNameDrafts[currentTicket.key] ?? currentTicket.friendlyName ?? "";
+
+    setPinnedTickets((prev) =>
+      prev.map((ticket) =>
+        ticket.key === currentTicket.key
+          ? { ...ticket, key: nextKey, ticket: trimmedTicket, friendlyName }
+          : ticket,
+      ),
+    );
+    setFriendlyNameDrafts((prev) => {
+      const next = { ...prev };
+      delete next[currentTicket.key];
+      next[nextKey] = friendlyName;
+      return next;
+    });
+    handleCancelEditPinnedTicket();
   };
 
   const getRecentTicketStats = (): Record<string, TicketRecentStats> => {
@@ -1436,30 +1497,60 @@ function App() {
                   <ul className="client-list">
                     {pinnedTicketsForDisplay.map((ticket) => (
                       <li key={ticket.key} className="client-item pinned-ticket-item">
-                        <div className="pinned-ticket-header">
-                          <span className="pinned-ticket-label">
-                            {ticket.friendlyName?.trim() ? (
-                              <>
-                                {ticket.friendlyName.trim()} (
-                                {renderTicketKeyLink(
+                        {editingPinnedTicketKey === ticket.key ? (
+                          <div className="pinned-ticket-edit">
+                            <input
+                              type="text"
+                              value={editPinnedTicketNumber}
+                              onChange={(e) => setEditPinnedTicketNumber(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSaveEditPinnedTicket();
+                                } else if (e.key === "Escape") {
+                                  handleCancelEditPinnedTicket();
+                                }
+                              }}
+                              aria-label="Ticket number"
+                              placeholder="Ticket number"
+                              autoFocus
+                            />
+                            <div className="pinned-ticket-edit-actions">
+                              <button onClick={handleCancelEditPinnedTicket}>Cancel</button>
+                              <button onClick={handleSaveEditPinnedTicket}>Save</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pinned-ticket-header">
+                            <span className="pinned-ticket-label">
+                              {ticket.friendlyName?.trim() ? (
+                                <>
+                                  {ticket.friendlyName.trim()} (
+                                  {renderTicketKeyLink(
+                                    jiraBaseUrl,
+                                    ticket.client,
+                                    ticket.ticket,
+                                    ticket.key,
+                                  )}
+                                  )
+                                </>
+                              ) : (
+                                renderTicketKeyLink(
                                   jiraBaseUrl,
                                   ticket.client,
                                   ticket.ticket,
                                   ticket.key,
-                                )}
                                 )
-                              </>
-                            ) : (
-                              renderTicketKeyLink(
-                                jiraBaseUrl,
-                                ticket.client,
-                                ticket.ticket,
-                                ticket.key,
-                              )
-                            )}
-                          </span>
-                          <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
-                        </div>
+                              )}
+                            </span>
+                            <div className="pinned-ticket-actions">
+                              <button onClick={() => handleStartEditPinnedTicket(ticket)}>
+                                Edit
+                              </button>
+                              <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
+                            </div>
+                          </div>
+                        )}
                         <div className="pinned-ticket-recent">
                           Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
                         </div>

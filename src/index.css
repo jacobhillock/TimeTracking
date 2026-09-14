@@ -1521,6 +1521,25 @@ a.summary-link:hover {
   gap: 10px;
 }
 
+.pinned-ticket-actions,
+.pinned-ticket-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pinned-ticket-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pinned-ticket-edit input {
+  flex: 1;
+  min-width: 0;
+}
+
 .pinned-ticket-label {
   font-weight: 600;
   font-size: 13px;
