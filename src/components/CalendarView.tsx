@@ -21,13 +21,6 @@ interface GridMetrics {
   slotHeight: number;
 }
 
-interface LatestTicketOption {
-  key: string;
-  client: string;
-  ticket: string;
-  label: string;
-}
-
 function adjustColorBrightness(hexColor: string, percent: number): string {
   const hex = hexColor.replace("#", "");
   const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + percent));
@@ -73,6 +66,7 @@ function CalendarView({
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const businessWeekDates = getBusinessWeekDates();
   const allTicketOptions = [
+    ...ticketOptions.workedToday,
     ...ticketOptions.pinned,
     ...ticketOptions.todos,
     ...ticketOptions.recent,
@@ -96,40 +90,6 @@ function CalendarView({
     const [h, m] = timeStr.split(":").map(Number);
     return h * 60 + m;
   };
-  const latestTicketOption = (() => {
-    const targetDateKey = editingEntryDateKey || formatLocalDate(currentDate);
-    const dayEntries = entries[targetDateKey] || [];
-    const trackedEntries = dayEntries.filter((entry) => entry.client.trim() && entry.ticket.trim());
-    if (trackedEntries.length === 0) return null;
-
-    const latestEntry = [...trackedEntries].sort((a, b) => {
-      const endDiff = timeToMinutes(b.endTime) - timeToMinutes(a.endTime);
-      if (endDiff !== 0) return endDiff;
-
-      const startDiff = timeToMinutes(b.startTime) - timeToMinutes(a.startTime);
-      if (startDiff !== 0) return startDiff;
-
-      return b.id - a.id;
-    })[0];
-
-    const client = latestEntry.client.trim();
-    const ticket = latestEntry.ticket.trim();
-    if (!client || !ticket) return null;
-
-    const matchingOption = allTicketOptions.find(
-      (option) => option.client === client && option.ticket === ticket,
-    );
-    const label = matchingOption?.friendlyName?.trim()
-      ? `Latest entry: ${matchingOption.friendlyName.trim()} (${client}-${ticket})`
-      : `Latest entry: ${client}-${ticket}`;
-
-    return {
-      key: "__latest_entry__",
-      client,
-      ticket,
-      label,
-    } satisfies LatestTicketOption;
-  })();
   const selectedEntryTags = editingEntry?.tags || [];
   const availableTagTypes = (() => {
     const options = [...tagTypes];
@@ -438,19 +398,6 @@ function CalendarView({
     setQuickTicketSelection(value);
     if (!editingEntry || !value) return;
 
-    if (value === latestTicketOption?.key) {
-      onEditEntry(
-        {
-          ...editingEntry,
-          client: latestTicketOption.client,
-          ticket: latestTicketOption.ticket,
-        },
-        editingEntryDateKey,
-      );
-      setQuickTicketSelection("");
-      return;
-    }
-
     const selectedOption = allTicketOptions.find((option) => option.key === value);
     if (!selectedOption) return;
 
@@ -726,7 +673,7 @@ function CalendarView({
             </div>
             <div className="modal-grid-row modal-grid-row-three modal-grid-row-ticket">
               <div className="modal-field">
-                <label>Client</label>
+                <label>Space</label>
                 <select
                   value={editingEntry.client}
                   onChange={(e) =>
@@ -734,7 +681,7 @@ function CalendarView({
                   }
                   tabIndex={3}
                 >
-                  <option value="">Select Client</option>
+                  <option value="">Select Space</option>
                   {clients.map((client) => (
                     <option key={client} value={client}>
                       {client}
@@ -761,11 +708,6 @@ function CalendarView({
                   tabIndex={5}
                 >
                   <option value="">Select ticket...</option>
-                  {latestTicketOption && (
-                    <option key={latestTicketOption.key} value={latestTicketOption.key}>
-                      {latestTicketOption.label}
-                    </option>
-                  )}
                   {ticketOptions.pinned.length > 0 && (
                     <optgroup label="Pinned">
                       {ticketOptions.pinned.map((option) => (
@@ -777,8 +719,19 @@ function CalendarView({
                       ))}
                     </optgroup>
                   )}
+                  {ticketOptions.workedToday.length > 0 && (
+                    <optgroup label="Worked Today">
+                      {ticketOptions.workedToday.map((option) => (
+                        <option key={`worked-today-${option.key}`} value={option.key}>
+                          {option.friendlyName?.trim()
+                            ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                            : `${option.client}-${option.ticket}`}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                   {ticketOptions.todos.length > 0 && (
-                    <optgroup label="Todos">
+                    <optgroup label="ToDo">
                       {ticketOptions.todos.map((option) => (
                         <option key={`todo-${option.key}`} value={option.key}>
                           {option.friendlyName?.trim()
@@ -789,7 +742,7 @@ function CalendarView({
                     </optgroup>
                   )}
                   {ticketOptions.recent.length > 0 && (
-                    <optgroup label="Recent 7 days">
+                    <optgroup label="Recent">
                       {ticketOptions.recent.map((option) => (
                         <option key={`recent-${option.key}`} value={option.key}>
                           {option.friendlyName?.trim()

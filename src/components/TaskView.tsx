@@ -150,7 +150,7 @@ function TaskView({ dayEntries, onUpdateDayEntries, isEntryUntracked }: TaskView
               onChange={(e) => updateEntry(entry.id, "client", e.target.value)}
               disabled={entry.disabled}
             >
-              <option value="">Select Client</option>
+              <option value="">Select Space</option>
               {clients.map((client) => (
                 <option key={client} value={client}>
                   {client}

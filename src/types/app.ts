@@ -19,13 +19,14 @@ export interface TicketOption {
   key: string;
   client: string;
   ticket: string;
-  source: "pinned" | "todo" | "recent";
+  source: "workedToday" | "pinned" | "todo" | "recent";
   friendlyName?: string;
   lastLoggedDate?: string;
   sortByRecentDate?: string;
 }
 
 export interface TicketOptionGroups {
+  workedToday: TicketOption[];
   pinned: TicketOption[];
   todos: TicketOption[];
   recent: TicketOption[];

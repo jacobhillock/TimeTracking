@@ -254,7 +254,7 @@ function TodoFormFields({
           className={clientSelectClassName}
           style={clientSelectStyle}
         >
-          <option value="">Optional client</option>
+          <option value="">Optional space</option>
           {clients.map((client) => (
             <option key={client} value={client}>
               {client}
@@ -768,22 +768,27 @@ function App() {
   };
 
   const handleAddTodo = async () => {
-    if (newTodoDescription.trim()) {
-      const newTodo = await addTodo(
-        newTodoDescription.trim(),
-        newTodoClient.trim() || undefined,
-        newTodoTicket.trim() || undefined,
-        dateKey,
-      );
-      if (newTodo) {
-        console.log("Todo added:", newTodo);
-        const filteredTodos = await getAllTodos(dateKey);
-        setTodos(filteredTodos);
-        setNewTodoDescription("");
-        setNewTodoClient("");
-        setNewTodoTicket("");
-      }
+    const description = newTodoDescription.trim();
+    if (!description) {
+      notifyErrorToast("Todo description required", "Enter a description before adding a todo.");
+      return;
     }
+
+    const newTodo = await addTodo(
+      description,
+      newTodoClient.trim() || undefined,
+      newTodoTicket.trim() || undefined,
+      dateKey,
+    );
+    if (!newTodo) {
+      notifyErrorToast("Todo not added", "Could not save the todo. Please try again.");
+      return;
+    }
+
+    setTodos((prev) => [newTodo, ...prev.filter((todo) => todo.id !== newTodo.id)]);
+    setNewTodoDescription("");
+    setNewTodoClient("");
+    setNewTodoTicket("");
   };
 
   const handleToggleTodo = async (id: number): Promise<void> => {
@@ -985,7 +990,7 @@ function App() {
   const recentTicketStats = getRecentTicketStats();
 
   const getTicketOptionGroups = (): TicketOptionGroups => {
-    const groups: TicketOptionGroups = { pinned: [], todos: [], recent: [] };
+    const groups: TicketOptionGroups = { workedToday: [], pinned: [], todos: [], recent: [] };
     const seenGlobal = new Set<string>();
 
     pinnedTickets.forEach((pinned) => {
@@ -1002,6 +1007,32 @@ function App() {
         lastLoggedDate,
         sortByRecentDate: lastLoggedDate,
       });
+      seenGlobal.add(lookup);
+    });
+
+    const workedTodaySeen = new Set<string>();
+    const workedTodayEntries = entries[dateKey] || [];
+    workedTodayEntries.forEach((entry) => {
+      const client = normalizeTicketPart(entry.client);
+      const ticket = normalizeTicketPart(entry.ticket);
+      if (!client || !ticket) return;
+
+      const lookup = toTicketKeyLookup(client, ticket);
+      if (workedTodaySeen.has(lookup) || seenGlobal.has(lookup)) return;
+
+      const pinnedMatch = pinnedTickets.find(
+        (pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
+      );
+      groups.workedToday.push({
+        key: toTicketKey(client, ticket),
+        client,
+        ticket,
+        source: "workedToday",
+        friendlyName: pinnedMatch?.friendlyName,
+        lastLoggedDate: dateKey,
+        sortByRecentDate: dateKey,
+      });
+      workedTodaySeen.add(lookup);
       seenGlobal.add(lookup);
     });
 
@@ -1057,6 +1088,7 @@ function App() {
       seenGlobal.add(lookup);
     });
 
+    groups.workedToday.sort(sortTicketOptions);
     groups.pinned.sort(sortTicketOptions);
     groups.todos.sort(sortTicketOptions);
     groups.recent.sort(sortTicketOptions);
@@ -1483,7 +1515,7 @@ function App() {
                     ))}
                   </ul>
                 ) : (
-                  <EmptyState>No entries with client yet</EmptyState>
+                  <EmptyState>No entries with space yet</EmptyState>
                 )}
               </CollapsibleSection>
 
@@ -1727,20 +1759,20 @@ function App() {
               </CollapsibleSection>
 
               <CollapsibleSection
-                title="Client Summaries"
+                title="Space Summaries"
                 sectionName="clients"
                 isCollapsed={collapsedSections.clients}
                 onToggle={() => toggleSection("clients")}
               >
                 <input
                   type="text"
-                  placeholder="New client name"
+                  placeholder="New space name"
                   value={newClient}
                   onChange={(e) => setNewClient(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && addClient()}
                 />
                 <button className="add-button" onClick={addClient}>
-                  Add Client
+                  Add Space
                 </button>
                 <ul className="client-list">
                   {[...clients]
@@ -1787,7 +1819,7 @@ function App() {
                               style={{
                                 marginBottom: "0",
                               }}
-                              title="Set client color"
+                              title="Set space color"
                             />
                             <div
                               className="color-preview"
@@ -1855,7 +1887,7 @@ function App() {
                       marginTop: "10px",
                     }}
                   >
-                    Tickets will link to: {jiraBaseUrl || "(not set)"}/CLIENT-123
+                    Tickets will link to: {jiraBaseUrl || "(not set)"}/SPACE-123
                   </div>
                 </div>
 
