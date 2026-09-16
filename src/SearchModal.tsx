@@ -135,7 +135,7 @@ function SearchModal({ isOpen, onClose, currentDate, onNavigateToDate }: SearchM
               ref={inputRef}
               type="text"
               className="search-input"
-              placeholder="Search entries by date, client, ticket, or description..."
+              placeholder="Search entries by date, space, ticket, or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -162,7 +162,7 @@ function SearchModal({ isOpen, onClose, currentDate, onNavigateToDate }: SearchM
               <div className="no-results-icon">🔍</div>
               <div>No results found</div>
               <div className="no-results-hint">
-                Try searching for a client, ticket number, date, or description
+                Try searching for a space, ticket number, date, or description
               </div>
             </div>
           )}
@@ -227,7 +227,7 @@ function SearchModal({ isOpen, onClose, currentDate, onNavigateToDate }: SearchM
               <div className="empty-state-icon">🔍</div>
               <div>Start typing to search</div>
               <div className="empty-state-hint">
-                Search by date (MM/DD/YYYY), client, ticket #, or description
+                Search by date (MM/DD/YYYY), space, ticket #, or description
               </div>
             </div>
           )}

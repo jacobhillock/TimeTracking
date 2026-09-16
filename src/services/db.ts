@@ -3,7 +3,7 @@ import type { DBSchema, IDBPDatabase, IDBPObjectStore, IDBPTransaction } from "i
 import type { TimeEntry, Todo } from "./types";
 
 const DB_NAME = "timeTrackerDB";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 export const TIME_ENTRY_STORE_NAME = "timeEntries";
 export const TIME_ENTRY_DATE_INDEX = "by-date";
 export const TODO_STORE_NAME = "todos";
@@ -198,6 +198,9 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
           } else {
             ensureTimeEntryStore(db, transaction);
           }
+        }
+        if (oldVersion < 7) {
+          ensureTodoIndexes(db, transaction);
         }
       },
     });

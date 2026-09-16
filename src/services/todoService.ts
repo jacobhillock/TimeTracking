@@ -2,6 +2,7 @@ import {
   addRecord,
   fromTodoRecord,
   deleteRecord,
+  getAll,
   getAllByIndex,
   getByKey,
   putRecord,
@@ -11,6 +12,7 @@ import {
   TODO_COMPLETED_FALSE,
   TODO_STORE_NAME,
 } from "./db";
+import type { TodoRecord } from "./db";
 import type { Todo } from "./types";
 
 function formatLocalDate(date: Date): string {
@@ -21,14 +23,10 @@ function formatLocalDate(date: Date): string {
 }
 
 export async function getAllTodos(dateKey: string): Promise<Todo[]> {
-  try {
-    const [activeTodos, completedTodayTodos] = await Promise.all([
-      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED, TODO_COMPLETED_FALSE),
-      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED_DATE, dateKey),
-    ]);
+  const filterTodosForDate = (storedTodos: TodoRecord[]): Todo[] => {
     const mergedTodos = new Map<number, Todo>();
 
-    for (const todo of [...activeTodos, ...completedTodayTodos]) {
+    for (const todo of storedTodos) {
       const publicTodo = fromTodoRecord(todo);
       mergedTodos.set(publicTodo.id, publicTodo);
     }
@@ -36,9 +34,22 @@ export async function getAllTodos(dateKey: string): Promise<Todo[]> {
     return Array.from(mergedTodos.values()).filter((todo) => {
       return !todo.completed || todo.completedDate === dateKey;
     });
+  };
+
+  try {
+    const [activeTodos, completedTodayTodos] = await Promise.all([
+      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED, TODO_COMPLETED_FALSE),
+      getAllByIndex(TODO_STORE_NAME, TODO_INDEX_COMPLETED_DATE, dateKey),
+    ]);
+    return filterTodosForDate([...activeTodos, ...completedTodayTodos]);
   } catch (error) {
     console.error("Failed to get all todos:", error);
-    return [];
+    try {
+      return filterTodosForDate(await getAll(TODO_STORE_NAME));
+    } catch (fallbackError) {
+      console.error("Failed to read todos using fallback:", fallbackError);
+      return [];
+    }
   }
 }
 
