@@ -631,10 +631,18 @@ a.summary-link:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  border: 4px solid transparent;
 }
 
-.calendar-entry:hover {
+.calendar-entry-ticket-match {
+  border-color: var(--color-page-text);
+}
+
+.calendar-entry:hover,
+.calendar-entry-resizing {
   background: var(--color-primary-hover);
+  border-top-color: color-mix(in srgb, var(--color-page-text) 65%, var(--color-primary));
+  border-bottom-color: color-mix(in srgb, var(--color-page-text) 65%, var(--color-primary-hover));
 }
 
 .calendar-entry.disabled {
@@ -662,12 +670,7 @@ a.summary-link:hover {
 }
 
 .calendar-entry:hover .entry-resize-handle {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.entry-resize-handle:hover {
-  background: rgba(255, 255, 255, 0.5) !important;
+  opacity: 0;
 }
 
 .entry-client {

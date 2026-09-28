@@ -17,16 +17,13 @@ interface HoveredTimeRange {
   end: number;
 }
 
-interface GridMetrics {
-  slotHeight: number;
+interface HoveredTicket {
+  dateKey: string;
+  ticket: string;
 }
 
-function adjustColorBrightness(hexColor: string, percent: number): string {
-  const hex = hexColor.replace("#", "");
-  const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + percent));
-  const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + percent));
-  const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + percent));
-  return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
+interface GridMetrics {
+  slotHeight: number;
 }
 
 function CalendarView({
@@ -57,6 +54,7 @@ function CalendarView({
   const [dragCurrentRegion, setDragCurrentRegion] = useState<DragRegion | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredTimeRange, setHoveredTimeRange] = useState<HoveredTimeRange | null>(null);
+  const [hoveredTicket, setHoveredTicket] = useState<HoveredTicket | null>(null);
   const [resizingEntry, setResizingEntry] = useState<EditableTimeEntry | null>(null);
   const [resizeEdge, setResizeEdge] = useState<ResizeEdge | null>(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -342,10 +340,13 @@ function CalendarView({
     };
   }, [entries, intervalMinutes, calendarStartTime, calendarEndTime]);
 
-  const handleEntryMouseEnter = (entry: TimeEntry): void => {
+  const handleEntryMouseEnter = (entry: TimeEntry, dateKey: string): void => {
     const startMin = timeToMinutes(entry.startTime);
     const endMin = timeToMinutes(entry.endTime);
     setHoveredTimeRange({ start: startMin, end: endMin });
+
+    const ticket = entry.ticket?.trim().toLowerCase() ?? "";
+    setHoveredTicket(ticket ? { dateKey, ticket } : null);
   };
 
   const isTimeLabelInRange = (min: number): boolean => {
@@ -545,12 +546,20 @@ function CalendarView({
                   clientColor,
                   useClassicColors ? "blackWhite" : "oklch",
                 );
-                const borderColor = adjustColorBrightness(clientColor, -30);
+                const ticketLookup = entry.ticket?.trim().toLowerCase() ?? "";
+                const isMatchingHoveredTicket =
+                  Boolean(ticketLookup) &&
+                  ((hoveredTicket?.dateKey === dateKey && hoveredTicket?.ticket === ticketLookup) ||
+                    (resizingEntry?.dateKey === dateKey &&
+                      resizingEntry.ticket?.trim().toLowerCase() === ticketLookup));
+                const isResizingThisEntry = resizingEntry?.id === entry.id;
 
                 return (
                   <div
                     key={entry.id}
-                    className={`calendar-entry ${entry.disabled ? "disabled" : ""}`}
+                    className={`calendar-entry ${entry.disabled ? "disabled" : ""} ${
+                      isMatchingHoveredTicket ? "calendar-entry-ticket-match" : ""
+                    } ${isResizingThisEntry ? "calendar-entry-resizing" : ""}`}
                     style={{
                       top: `${topPx}px`,
                       height: `${Math.max(0, heightPx - 8)}px`,
@@ -558,21 +567,23 @@ function CalendarView({
                         resizingEntry && resizingEntry.id === entry.id ? "none" : "auto",
                       backgroundColor: clientColor,
                       color: textColor,
-                      borderColor,
                       opacity: entry.disabled ? 0.5 : 1,
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
                       onEditEntry(entry, dateKey);
                     }}
-                    onMouseEnter={() => handleEntryMouseEnter(entry)}
-                    onMouseLeave={() => setHoveredTimeRange(null)}
+                    onMouseEnter={() => handleEntryMouseEnter(entry, dateKey)}
+                    onMouseLeave={() => {
+                      setHoveredTimeRange(null);
+                      setHoveredTicket(null);
+                    }}
                   >
                     <div
                       className="entry-resize-handle entry-resize-top"
                       onMouseDown={(e) => handleResizeMouseDown(e, entry, "top", dateKey)}
                       title="Drag to adjust start time"
-                      style={{ pointerEvents: "auto", backgroundColor: borderColor }}
+                      style={{ pointerEvents: "auto" }}
                     />
                     <div className="entry-client">
                       {entry.client}
@@ -597,7 +608,7 @@ function CalendarView({
                       className="entry-resize-handle entry-resize-bottom"
                       onMouseDown={(e) => handleResizeMouseDown(e, entry, "bottom", dateKey)}
                       title="Drag to adjust end time"
-                      style={{ pointerEvents: "auto", backgroundColor: borderColor }}
+                      style={{ pointerEvents: "auto" }}
                     />
                   </div>
                 );
