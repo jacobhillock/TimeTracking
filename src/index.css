@@ -793,6 +793,20 @@ a.summary-link:hover {
   margin-bottom: 16px;
 }
 
+.ticket-name-modal-row {
+  display: flex;
+  gap: 12px;
+}
+
+.ticket-name-modal-row .modal-field:first-child {
+  flex: 0 0 42%;
+}
+
+.ticket-name-modal-row .modal-field:last-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .modal-field label {
   display: block;
   margin-bottom: 6px;

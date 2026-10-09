@@ -386,8 +386,10 @@ function App() {
   const [ticketNameTarget, setTicketNameTarget] = useState<{
     client: string;
     ticket: string;
+    pinnedKey?: string;
   } | null>(null);
   const [ticketNameDraft, setTicketNameDraft] = useState("");
+  const [ticketNumberDraft, setTicketNumberDraft] = useState("");
   const newTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const editTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({});
@@ -879,11 +881,13 @@ function App() {
     )?.friendlyName;
     setTicketNameTarget({ client, ticket });
     setTicketNameDraft(existingName ?? "");
+    setTicketNumberDraft(ticket);
   };
 
   const closeTicketNameModal = (): void => {
     setTicketNameTarget(null);
     setTicketNameDraft("");
+    setTicketNumberDraft("");
   };
 
   const saveTicketName = (): void => {
@@ -892,14 +896,31 @@ function App() {
     if (!friendlyName) return;
 
     const client = normalizeTicketPart(ticketNameTarget.client);
-    const ticket = normalizeTicketPart(ticketNameTarget.ticket);
+    const ticket = normalizeTicketPart(ticketNumberDraft);
+    if (!ticket) {
+      notifyErrorToast("Invalid ticket number", "A labeled ticket must have a ticket number.");
+      return;
+    }
     const key = toTicketKey(client, ticket);
+    const duplicate = pinnedTickets.find(
+      (item) =>
+        item.key !== ticketNameTarget.pinnedKey &&
+        toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+    );
+    if (duplicate) {
+      notifyErrorToast("Ticket already labeled", "That ticket is already in your labeled tickets.");
+      return;
+    }
     setPinnedTickets((prev) => {
       const existing = prev.find(
-        (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+        (item) =>
+          item.key === ticketNameTarget.pinnedKey ||
+          toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
       );
       if (existing) {
-        return prev.map((item) => (item.key === existing.key ? { ...item, friendlyName } : item));
+        return prev.map((item) =>
+          item.key === existing.key ? { ...item, key, client, ticket, friendlyName } : item,
+        );
       }
       return [...prev, { key, client, ticket, friendlyName, pinnedAt: dateKey }];
     });
@@ -920,7 +941,9 @@ function App() {
   };
 
   const handleStartEditPinnedTicket = (ticket: PinnedTicket): void => {
-    openTicketNameModal(ticket.client, ticket.ticket);
+    setTicketNameTarget({ client: ticket.client, ticket: ticket.ticket, pinnedKey: ticket.key });
+    setTicketNumberDraft(ticket.ticket);
+    setTicketNameDraft(ticket.friendlyName ?? "");
   };
 
   const handleCancelEditPinnedTicket = (): void => {
@@ -2170,20 +2193,55 @@ function App() {
               style={{ maxWidth: "400px" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3>Set Ticket Name</h3>
-              <p>
-                {ticketNameTarget.client}-{ticketNameTarget.ticket}
-              </p>
+              <h3>Edit Labeled Ticket</h3>
+              <div className="ticket-name-modal-row">
+                <div className="modal-field">
+                  <label htmlFor="ticket-space-input">Space</label>
+                  <select
+                    id="ticket-space-input"
+                    value={ticketNameTarget.client}
+                    onChange={(e) =>
+                      setTicketNameTarget((target) =>
+                        target ? { ...target, client: e.target.value } : target,
+                      )
+                    }
+                  >
+                    {!clients.includes(ticketNameTarget.client) && (
+                      <option value={ticketNameTarget.client}>{ticketNameTarget.client}</option>
+                    )}
+                    {clients.map((client) => (
+                      <option key={client} value={client}>
+                        {client}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="modal-field">
+                  <label htmlFor="ticket-number-input">Ticket number</label>
+                  <input
+                    id="ticket-number-input"
+                    type="text"
+                    autoFocus
+                    value={ticketNumberDraft}
+                    onChange={(e) => setTicketNumberDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && ticketNameDraft.trim() && ticketNumberDraft.trim())
+                        saveTicketName();
+                      if (e.key === "Escape") closeTicketNameModal();
+                    }}
+                  />
+                </div>
+              </div>
               <div className="modal-field">
                 <label htmlFor="ticket-name-input">Ticket name</label>
                 <input
                   id="ticket-name-input"
                   type="text"
-                  autoFocus
                   value={ticketNameDraft}
                   onChange={(e) => setTicketNameDraft(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && ticketNameDraft.trim()) saveTicketName();
+                    if (e.key === "Enter" && ticketNameDraft.trim() && ticketNumberDraft.trim())
+                      saveTicketName();
                     if (e.key === "Escape") closeTicketNameModal();
                   }}
                 />
@@ -2195,9 +2253,9 @@ function App() {
                 <button
                   className="btn-save"
                   onClick={saveTicketName}
-                  disabled={!ticketNameDraft.trim()}
+                  disabled={!ticketNameDraft.trim() || !ticketNumberDraft.trim()}
                 >
-                  Set Name
+                  Save
                 </button>
               </div>
             </div>
