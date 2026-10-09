@@ -709,6 +709,7 @@ a.summary-link:hover {
 
 .entry-delete {
   position: absolute;
+  z-index: 10;
   top: 2px;
   right: 2px;
   width: 16px;
