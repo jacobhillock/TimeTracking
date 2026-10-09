@@ -383,6 +383,11 @@ function App() {
   const [editTodoTicket, setEditTodoTicket] = useState("");
   const [editingPinnedTicketKey, setEditingPinnedTicketKey] = useState<string | null>(null);
   const [editPinnedTicketNumber, setEditPinnedTicketNumber] = useState("");
+  const [ticketNameTarget, setTicketNameTarget] = useState<{
+    client: string;
+    ticket: string;
+  } | null>(null);
+  const [ticketNameDraft, setTicketNameDraft] = useState("");
   const newTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const editTodoDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const [friendlyNameDrafts, setFriendlyNameDrafts] = useState<Record<string, string>>({});
@@ -859,23 +864,46 @@ function App() {
     );
   };
 
-  const pinTicket = (client: string, ticket: string): void => {
-    const trimmedClient = normalizeTicketPart(client);
-    const trimmedTicket = normalizeTicketPart(ticket);
-    if (!trimmedClient || !trimmedTicket) return;
+  const getSummaryTicketLabel = (client: string, ticket: string): string => {
+    const pinned = pinnedTickets.find(
+      (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+    );
+    const friendlyName = pinned?.friendlyName?.trim();
+    const key = `${client}-${ticket}`;
+    return friendlyName ? `${friendlyName} (${key})` : key;
+  };
 
-    const key = toTicketKey(trimmedClient, trimmedTicket);
-    if (isTicketPinned(trimmedClient, trimmedTicket)) return;
+  const openTicketNameModal = (client: string, ticket: string): void => {
+    const existingName = pinnedTickets.find(
+      (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+    )?.friendlyName;
+    setTicketNameTarget({ client, ticket });
+    setTicketNameDraft(existingName ?? "");
+  };
 
-    setPinnedTickets((prev) => [
-      ...prev,
-      {
-        key,
-        client: trimmedClient,
-        ticket: trimmedTicket,
-        pinnedAt: dateKey,
-      },
-    ]);
+  const closeTicketNameModal = (): void => {
+    setTicketNameTarget(null);
+    setTicketNameDraft("");
+  };
+
+  const saveTicketName = (): void => {
+    if (!ticketNameTarget) return;
+    const friendlyName = ticketNameDraft.trim();
+    if (!friendlyName) return;
+
+    const client = normalizeTicketPart(ticketNameTarget.client);
+    const ticket = normalizeTicketPart(ticketNameTarget.ticket);
+    const key = toTicketKey(client, ticket);
+    setPinnedTickets((prev) => {
+      const existing = prev.find(
+        (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+      );
+      if (existing) {
+        return prev.map((item) => (item.key === existing.key ? { ...item, friendlyName } : item));
+      }
+      return [...prev, { key, client, ticket, friendlyName, pinnedAt: dateKey }];
+    });
+    closeTicketNameModal();
   };
 
   const unpinTicket = (key: string): void => {
@@ -891,26 +919,8 @@ function App() {
     setPinnedTickets((prev) => prev.filter((ticket) => ticket.key !== key));
   };
 
-  const updatePinnedFriendlyName = (key: string, friendlyName: string): void => {
-    setPinnedTickets((prev) =>
-      prev.map((ticket) => (ticket.key === key ? { ...ticket, friendlyName } : ticket)),
-    );
-  };
-
-  const handlePinnedFriendlyNameChange = (key: string, value: string): void => {
-    setFriendlyNameDrafts((prev) => ({ ...prev, [key]: value }));
-    if (friendlyNameTimersRef.current[key]) {
-      clearTimeout(friendlyNameTimersRef.current[key]);
-    }
-    friendlyNameTimersRef.current[key] = setTimeout(() => {
-      updatePinnedFriendlyName(key, value);
-      delete friendlyNameTimersRef.current[key];
-    }, 300);
-  };
-
   const handleStartEditPinnedTicket = (ticket: PinnedTicket): void => {
-    setEditingPinnedTicketKey(ticket.key);
-    setEditPinnedTicketNumber(ticket.ticket);
+    openTicketNameModal(ticket.client, ticket.ticket);
   };
 
   const handleCancelEditPinnedTicket = (): void => {
@@ -928,7 +938,7 @@ function App() {
       return;
     }
     if (!trimmedTicket) {
-      notifyErrorToast("Invalid ticket number", "A pinned ticket must have a ticket number.");
+      notifyErrorToast("Invalid ticket number", "A labeled ticket must have a ticket number.");
       return;
     }
 
@@ -940,7 +950,7 @@ function App() {
           toTicketKeyLookup(currentTicket.client, trimmedTicket),
     );
     if (duplicate) {
-      notifyErrorToast("Ticket already pinned", "That ticket is already in your pinned tickets.");
+      notifyErrorToast("Ticket already labeled", "That ticket is already in your labeled tickets.");
       return;
     }
 
@@ -1456,11 +1466,15 @@ function App() {
                                   setClickedSummary(item);
                                 }}
                               >
-                                {item.isUntracked ? `${item.client} (untracked)` : item.key}
+                                {item.isUntracked
+                                  ? `${item.client} (untracked)`
+                                  : getSummaryTicketLabel(item.client, item.ticket)}
                               </a>
                             ) : (
                               <span className="summary-link">
-                                {item.isUntracked ? `${item.client} (untracked)` : item.key}
+                                {item.isUntracked
+                                  ? `${item.client} (untracked)`
+                                  : getSummaryTicketLabel(item.client, item.ticket)}
                               </span>
                             )}
                           </div>
@@ -1469,10 +1483,10 @@ function App() {
                             {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
                               <button
                                 className="summary-pin-button"
-                                onClick={() => pinTicket(item.client, item.ticket)}
-                                title="Pin ticket"
+                                onClick={() => openTicketNameModal(item.client, item.ticket)}
+                                title="Set Name"
                               >
-                                Pin
+                                Set Name
                               </button>
                             )}
                           </div>
@@ -1520,7 +1534,7 @@ function App() {
               </CollapsibleSection>
 
               <CollapsibleSection
-                title="Pinned Tickets"
+                title="Labeled Tickets"
                 sectionName="pinnedTickets"
                 isCollapsed={collapsedSections.pinnedTickets}
                 onToggle={() => toggleSection("pinnedTickets")}
@@ -1577,28 +1591,20 @@ function App() {
                             </span>
                             <div className="pinned-ticket-actions">
                               <button onClick={() => handleStartEditPinnedTicket(ticket)}>
-                                Edit
+                                Edit Name
                               </button>
-                              <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
+                              <button onClick={() => unpinTicket(ticket.key)}>Remove Name</button>
                             </div>
                           </div>
                         )}
                         <div className="pinned-ticket-recent">
                           Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
                         </div>
-                        <input
-                          type="text"
-                          placeholder="Friendly name (optional)"
-                          value={friendlyNameDrafts[ticket.key] ?? ticket.friendlyName ?? ""}
-                          onChange={(e) =>
-                            handlePinnedFriendlyNameChange(ticket.key, e.target.value)
-                          }
-                        />
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <EmptyState>No pinned tickets yet</EmptyState>
+                  <EmptyState>No labeled tickets yet</EmptyState>
                 )}
               </CollapsibleSection>
 
@@ -2151,6 +2157,47 @@ function App() {
                 </button>
                 <button className="btn-save" onClick={executeMoveAndClose}>
                   Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {ticketNameTarget && (
+          <div className="calendar-modal-overlay" onClick={closeTicketNameModal}>
+            <div
+              className="calendar-modal"
+              style={{ maxWidth: "400px" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3>Set Ticket Name</h3>
+              <p>
+                {ticketNameTarget.client}-{ticketNameTarget.ticket}
+              </p>
+              <div className="modal-field">
+                <label htmlFor="ticket-name-input">Ticket name</label>
+                <input
+                  id="ticket-name-input"
+                  type="text"
+                  autoFocus
+                  value={ticketNameDraft}
+                  onChange={(e) => setTicketNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && ticketNameDraft.trim()) saveTicketName();
+                    if (e.key === "Escape") closeTicketNameModal();
+                  }}
+                />
+              </div>
+              <div className="modal-buttons">
+                <button className="btn-cancel" onClick={closeTicketNameModal}>
+                  Cancel
+                </button>
+                <button
+                  className="btn-save"
+                  onClick={saveTicketName}
+                  disabled={!ticketNameDraft.trim()}
+                >
+                  Set Name
                 </button>
               </div>
             </div>

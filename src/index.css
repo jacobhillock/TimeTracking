@@ -675,6 +675,23 @@ a.summary-link:hover {
 
 .entry-client {
   font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.entry-ticket-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-duration {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  opacity: 0.8;
+  white-space: nowrap;
 }
 
 .entry-ticket {
@@ -692,6 +709,7 @@ a.summary-link:hover {
 
 .entry-delete {
   position: absolute;
+  z-index: 10;
   top: 2px;
   right: 2px;
   width: 16px;
@@ -863,6 +881,13 @@ a.summary-link:hover {
 
 .btn-save:hover {
   background: var(--color-success-hover);
+}
+
+.btn-save:disabled {
+  background: var(--color-border-muted);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .btn-cancel {

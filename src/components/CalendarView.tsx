@@ -69,6 +69,18 @@ function CalendarView({
     ...ticketOptions.todos,
     ...ticketOptions.recent,
   ];
+  const getCalendarTicketLabel = (client: string, ticket: string): string => {
+    const clientLookup = client.trim().toLowerCase();
+    const ticketLookup = ticket.trim().toLowerCase();
+    const option = allTicketOptions.find(
+      (item) =>
+        item.client.trim().toLowerCase() === clientLookup &&
+        item.ticket.trim().toLowerCase() === ticketLookup,
+    );
+    const friendlyName = option?.friendlyName?.trim();
+    const key = `${client}-${ticket}`;
+    return friendlyName ? `${friendlyName} (${key})` : key;
+  };
   const formatLocalDate = (date: Date): string => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -586,11 +598,12 @@ function CalendarView({
                       style={{ pointerEvents: "auto" }}
                     />
                     <div className="entry-client">
-                      {entry.client}
-                      {entry.ticket ? `-${entry.ticket}` : ""}{" "}
-                      <span style={{ fontSize: "0.85em", opacity: 0.8 }}>
-                        (time: {durationHours}h)
+                      <span className="entry-ticket-label">
+                        {entry.ticket
+                          ? getCalendarTicketLabel(entry.client, entry.ticket)
+                          : entry.client}
                       </span>
+                      <span className="entry-duration">({durationHours}h)</span>
                     </div>
                     <div className="entry-description">{entry.description}</div>
                     <button
@@ -720,7 +733,7 @@ function CalendarView({
                 >
                   <option value="">Select ticket...</option>
                   {ticketOptions.pinned.length > 0 && (
-                    <optgroup label="Pinned">
+                    <optgroup label="Labeled">
                       {ticketOptions.pinned.map((option) => (
                         <option key={`pinned-${option.key}`} value={option.key}>
                           {option.friendlyName?.trim()
