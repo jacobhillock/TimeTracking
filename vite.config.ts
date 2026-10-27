@@ -7,6 +7,6 @@ export default defineConfig({
   plugins: [react()],
   ...(process.env.INCLUDE_BASE ? { base: "./" } : {}),
   server: {
-    allowedHosts: [".local"],
+    allowedHosts: [".local", "bangek"],
   },
 });
