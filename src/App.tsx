@@ -347,6 +347,8 @@ function App() {
     setLastCloseReminderDate,
     darkMode,
     setDarkMode,
+    mobileView,
+    setMobileView,
     sidebarVisible,
     setSidebarVisible,
     collapsedSections,
@@ -515,6 +517,20 @@ function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 720px)");
+    const updateMobileClass = (): void => {
+      document.documentElement.classList.toggle(
+        "mobile-view",
+        mobileView === "mobile" || (mobileView === "auto" && mediaQuery.matches),
+      );
+    };
+
+    updateMobileClass();
+    mediaQuery.addEventListener("change", updateMobileClass);
+    return () => mediaQuery.removeEventListener("change", updateMobileClass);
+  }, [mobileView]);
 
   useEffect(() => {
     const clearNowTimers = (): void => {
@@ -1876,6 +1892,26 @@ function App() {
                 isCollapsed={collapsedSections.settings}
                 onToggle={() => toggleSection("settings")}
               >
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "14px", marginBottom: "8px", fontWeight: "600" }}>
+                    Mobile Layout
+                  </h3>
+                  <select
+                    value={mobileView}
+                    onChange={(e) => setMobileView(e.target.value as typeof mobileView)}
+                    aria-label="Mobile layout mode"
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: "4px",
+                      border: "1px solid var(--color-border)",
+                    }}
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="mobile">Always mobile</option>
+                    <option value="desktop">Always desktop</option>
+                  </select>
+                </div>
                 <div style={{ marginBottom: "20px" }}>
                   <Checkbox.Root
                     className="todo-checkbox"

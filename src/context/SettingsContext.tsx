@@ -9,6 +9,12 @@ const parseCurrentView = (rawValue: string): ViewMode => {
   return rawValue === "task" || rawValue === "calendar" ? rawValue : "calendar";
 };
 
+export type MobileViewMode = "auto" | "mobile" | "desktop";
+
+const parseMobileViewMode = (rawValue: string): MobileViewMode => {
+  return rawValue === "mobile" || rawValue === "desktop" ? rawValue : "auto";
+};
+
 const parseNumber =
   (fallback: number) =>
   (rawValue: string): number => {
@@ -67,6 +73,8 @@ export interface SettingsContextValue {
   setLastCloseReminderDate: Dispatch<SetStateAction<string | null>>;
   darkMode: boolean;
   setDarkMode: Dispatch<SetStateAction<boolean>>;
+  mobileView: MobileViewMode;
+  setMobileView: Dispatch<SetStateAction<MobileViewMode>>;
   sidebarVisible: boolean;
   setSidebarVisible: Dispatch<SetStateAction<boolean>>;
   collapsedSections: CollapsedSections;
@@ -135,6 +143,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     null,
   );
   const [darkMode, setDarkMode] = useLocalStorageState<boolean>(STORAGE_KEYS.DARK_MODE, false);
+  const [mobileView, setMobileView] = useLocalStorageState<MobileViewMode>(
+    STORAGE_KEYS.MOBILE_VIEW,
+    "auto",
+    { parse: parseMobileViewMode },
+  );
   const [sidebarVisible, setSidebarVisible] = useLocalStorageState<boolean>(
     STORAGE_KEYS.SIDEBAR_VISIBLE,
     true,
@@ -186,6 +199,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setLastCloseReminderDate,
         darkMode,
         setDarkMode,
+        mobileView,
+        setMobileView,
         sidebarVisible,
         setSidebarVisible,
         collapsedSections,

@@ -60,6 +60,7 @@ function CalendarView({
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [quickTicketSelection, setQuickTicketSelection] = useState("");
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ slotHeight: 0 });
+  const [scrollbarGutterWidth, setScrollbarGutterWidth] = useState(0);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const businessWeekDates = getBusinessWeekDates();
@@ -303,6 +304,11 @@ function CalendarView({
       const grid = gridRef.current;
       if (!grid) return;
 
+      const nextScrollbarGutterWidth = Math.max(0, grid.offsetWidth - grid.clientWidth);
+      setScrollbarGutterWidth((current) =>
+        current === nextScrollbarGutterWidth ? current : nextScrollbarGutterWidth,
+      );
+
       const firstSlot = grid.querySelector<HTMLElement>(".calendar-hour-slot");
       const slotHeight = firstSlot?.getBoundingClientRect().height ?? 0;
 
@@ -453,7 +459,7 @@ function CalendarView({
 
   return (
     <div className="calendar-view" style={style}>
-      <div className="calendar-header">
+      <div className="calendar-header" style={{ paddingRight: `${scrollbarGutterWidth}px` }}>
         <div className="calendar-time-column"></div>
         {businessWeekDates.map((date) => {
           const dateKey = formatLocalDate(date);

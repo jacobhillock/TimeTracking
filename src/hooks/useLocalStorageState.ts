@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   LAST_OPEN_REMINDER_DATE: "lastOpenReminderDate",
   LAST_CLOSE_REMINDER_DATE: "lastCloseReminderDate",
   DARK_MODE: "darkMode",
+  MOBILE_VIEW: "mobileView",
   SIDEBAR_VISIBLE: "sidebarVisible",
   COLLAPSED_SECTIONS: "collapsedSections",
   PINNED_TICKETS: "pinnedTickets",
