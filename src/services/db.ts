@@ -1,13 +1,17 @@
 import { openDB } from "idb";
 import type { DBSchema, IDBPDatabase, IDBPObjectStore, IDBPTransaction } from "idb";
 import type { TimeEntry, Todo } from "./types";
+import type { PinnedTicket } from "../types/app";
 
 const DB_NAME = "timeTrackerDB";
-const DB_VERSION = 8;
+const DB_VERSION = 10;
 export const TIME_ENTRY_STORE_NAME = "timeEntries";
 export const TIME_ENTRY_DATE_INDEX = "by-date";
 export const TODO_STORE_NAME = "todos";
 export const PINNED_TICKET_STORE_NAME = "pinnedTickets";
+export const PINNED_TICKET_CLIENT_TICKET_INDEX = "by-client-ticket";
+export const PINNED_TICKET_NAME_INDEX = "by-name";
+export const PINNED_TICKET_PINNED_INDEX = "by-pinned";
 export const TODO_INDEX_COMPLETED = "by-completed";
 export const TODO_INDEX_COMPLETED_DATE = "by-completed-date";
 export const TODO_COMPLETED_FALSE = 0;
@@ -23,11 +27,21 @@ export interface TodoRecord extends Todo {
   completedDateIndex?: string;
 }
 
+export interface PinnedTicketRecord extends PinnedTicket {
+  clientLookup: string;
+  ticketLookup: string;
+  nameLookup: string;
+}
+
 interface TimeTrackerDB extends DBSchema {
   [PINNED_TICKET_STORE_NAME]: {
     key: string;
-    value: import("../types/app").PinnedTicket;
-    indexes: never;
+    value: PinnedTicketRecord;
+    indexes: {
+      [PINNED_TICKET_CLIENT_TICKET_INDEX]: [string, string];
+      [PINNED_TICKET_NAME_INDEX]: string;
+      [PINNED_TICKET_PINNED_INDEX]: "yes" | "";
+    };
   };
   [TIME_ENTRY_STORE_NAME]: {
     key: number;
@@ -212,6 +226,19 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
           ensureTodoIndexes(db, transaction);
         }
         if (oldVersion < 8) db.createObjectStore(PINNED_TICKET_STORE_NAME, { keyPath: "key" });
+        if (oldVersion < 9) {
+          const store = transaction.objectStore(PINNED_TICKET_STORE_NAME);
+          store.createIndex(PINNED_TICKET_CLIENT_TICKET_INDEX, ["clientLookup", "ticketLookup"]);
+          store.createIndex(PINNED_TICKET_NAME_INDEX, "nameLookup");
+          const existing = await store.getAll();
+          for (const ticket of existing) await store.put(toPinnedTicketRecord(ticket));
+        }
+        if (oldVersion < 10) {
+          const store = transaction.objectStore(PINNED_TICKET_STORE_NAME);
+          store.createIndex(PINNED_TICKET_PINNED_INDEX, "pinned");
+          const existing = await store.getAll();
+          for (const ticket of existing) await store.put(toPinnedTicketRecord(ticket));
+        }
       },
     });
     return dbInstance;
@@ -221,18 +248,73 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
   }
 }
 
-export async function getPinnedTickets(): Promise<import("../types/app").PinnedTicket[]> {
-  return (await getDB()).getAll(PINNED_TICKET_STORE_NAME);
+type LegacyPinnedTicket = Omit<PinnedTicket, "pinned"> & {
+  pinned?: "yes" | "";
+  pinnedAt?: string;
+};
+
+function toPinnedTicketRecord(ticket: PinnedTicket | LegacyPinnedTicket): PinnedTicketRecord {
+  const { pinnedAt: _pinnedAt, ...ticketFields } = ticket as LegacyPinnedTicket;
+  return {
+    ...ticketFields,
+    pinned: ticket.pinned || ("pinnedAt" in ticket && ticket.pinnedAt ? "yes" : ""),
+    clientLookup: ticket.client.trim().toLocaleLowerCase(),
+    ticketLookup: ticket.ticket.trim().toLocaleLowerCase(),
+    nameLookup: ticket.friendlyName?.trim().toLocaleLowerCase() ?? "",
+  };
+}
+
+function fromPinnedTicketRecord(record: PinnedTicketRecord): PinnedTicket {
+  const { clientLookup: _clientLookup, ticketLookup: _ticketLookup, nameLookup: _nameLookup, ...ticket } = record;
+  return ticket;
+}
+
+export async function getPinnedTickets(): Promise<PinnedTicket[]> {
+  const db = await getDB();
+  const store = db.transaction(PINNED_TICKET_STORE_NAME, "readonly").store;
+  const [pinned, unpinned] = await Promise.all([
+    store.index(PINNED_TICKET_PINNED_INDEX).getAll("yes"),
+    store.index(PINNED_TICKET_PINNED_INDEX).getAll(""),
+  ]);
+  const records = [...pinned, ...unpinned];
+  return records.map(fromPinnedTicketRecord);
 }
 
 export async function savePinnedTickets(
-  tickets: import("../types/app").PinnedTicket[],
+  tickets: PinnedTicket[],
 ): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(PINNED_TICKET_STORE_NAME, "readwrite");
   await tx.store.clear();
-  await Promise.all(tickets.map((ticket) => tx.store.put(ticket)));
+  await Promise.all(tickets.map((ticket) => tx.store.put(toPinnedTicketRecord(ticket))));
   await tx.done;
+}
+
+export async function findPinnedTicket(client: string, ticket: string): Promise<PinnedTicket | undefined> {
+  const record = await (await getDB())
+    .transaction(PINNED_TICKET_STORE_NAME, "readonly")
+    .store.index(PINNED_TICKET_CLIENT_TICKET_INDEX)
+    .get([client.trim().toLocaleLowerCase(), ticket.trim().toLocaleLowerCase()]);
+  return record ? fromPinnedTicketRecord(record) : undefined;
+}
+
+export async function searchPinnedTicketsByName(query: string): Promise<PinnedTicket[]> {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return [];
+  const db = await getDB();
+  const records = await db
+    .transaction(PINNED_TICKET_STORE_NAME, "readonly")
+    .store.index(PINNED_TICKET_NAME_INDEX)
+    .getAll(IDBKeyRange.bound(normalizedQuery, `${normalizedQuery}\uffff`));
+  return records.map(fromPinnedTicketRecord);
+}
+
+export async function getPinnedTicketsByStatus(): Promise<PinnedTicket[]> {
+  const records = await (await getDB())
+    .transaction(PINNED_TICKET_STORE_NAME, "readonly")
+    .store.index(PINNED_TICKET_PINNED_INDEX)
+    .getAll("yes");
+  return records.map(fromPinnedTicketRecord);
 }
 
 export async function migrateFromLocalStorage(): Promise<void> {

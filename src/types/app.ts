@@ -12,7 +12,7 @@ export interface PinnedTicket {
   client: string;
   ticket: string;
   friendlyName?: string;
-  pinnedAt: string;
+  pinned: "yes" | "";
 }
 
 export interface TicketOption {

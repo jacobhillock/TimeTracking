@@ -881,7 +881,7 @@ function App() {
     const lookup = toTicketKeyLookup(client, ticket);
     return pinnedTickets.some(
       (pinned) =>
-        Boolean(pinned.pinnedAt) && toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
+        pinned.pinned === "yes" && toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
     );
   };
 
@@ -917,7 +917,7 @@ function App() {
     if (namedTicket?.friendlyName?.trim()) {
       setPinnedTickets((prev) =>
         prev.map((item) =>
-          item.key === namedTicket.key ? { ...item, pinnedAt: item.pinnedAt || dateKey } : item,
+          item.key === namedTicket.key ? { ...item, pinned: "yes" } : item,
         ),
       );
       return;
@@ -973,14 +973,14 @@ function App() {
                 client,
                 ticket,
                 friendlyName,
-                pinnedAt: item.pinnedAt || (ticketNameTarget.pinOnSave ? dateKey : ""),
+                pinned: item.pinned === "yes" || !ticketNameTarget.pinOnSave ? item.pinned : "yes",
               }
             : item,
         );
       }
       return [
         ...prev,
-        { key, client, ticket, friendlyName, pinnedAt: ticketNameTarget.pinOnSave ? dateKey : "" },
+        { key, client, ticket, friendlyName, pinned: ticketNameTarget.pinOnSave ? "yes" : "" },
       ];
     });
     closeTicketNameModal();
@@ -997,7 +997,7 @@ function App() {
       return next;
     });
     setPinnedTickets((prev) =>
-      prev.map((ticket) => (ticket.key === key ? { ...ticket, pinnedAt: "" } : ticket)),
+      prev.map((ticket) => (ticket.key === key ? { ...ticket, pinned: "" } : ticket)),
     );
   };
 
@@ -1088,7 +1088,7 @@ function App() {
     const seenGlobal = new Set<string>();
 
     pinnedTickets
-      .filter((ticket) => Boolean(ticket.pinnedAt))
+      .filter((ticket) => ticket.pinned === "yes")
       .forEach((pinned) => {
         const lookup = toTicketKeyLookup(pinned.client, pinned.ticket);
         if (seenGlobal.has(lookup)) return;
@@ -1210,7 +1210,7 @@ function App() {
   const ticketOptionGroups = getTicketOptionGroups();
 
   const pinnedTicketsForDisplay = pinnedTickets
-    .filter((ticket) => Boolean(ticket.pinnedAt))
+    .filter((ticket) => ticket.pinned === "yes")
     .map((ticket) => ticket)
     .map((ticket) => {
       const lookup = toTicketKeyLookup(ticket.client, ticket.ticket);

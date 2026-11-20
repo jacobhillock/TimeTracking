@@ -5,6 +5,7 @@ import { useSettings } from "../context/SettingsContext";
 import type { CalendarViewProps, EditableTimeEntry, TicketOption } from "../types/app";
 import { getContrastColor } from "./calendarViewUtilities";
 import { Combobox } from "@base-ui-components/react/combobox";
+import { searchPinnedTicketsByName } from "../services/db";
 
 type ResizeEdge = "top" | "bottom";
 
@@ -63,6 +64,7 @@ function CalendarView({
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [ticketPickerOpen, setTicketPickerOpen] = useState(false);
   const [ticketSearch, setTicketSearch] = useState("");
+  const [indexedNamedOptions, setIndexedNamedOptions] = useState<TicketOption[]>([]);
   const [gridMetrics, setGridMetrics] = useState<GridMetrics>({ slotHeight: 0 });
   const [scrollbarGutterWidth, setScrollbarGutterWidth] = useState(0);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -74,11 +76,35 @@ function CalendarView({
     ...ticketOptions.todos,
     ...ticketOptions.recent,
   ];
+  useEffect(() => {
+    let current = true;
+    const query = ticketSearch.trim();
+    if (!query) {
+      setIndexedNamedOptions([]);
+      return;
+    }
+    void searchPinnedTicketsByName(query).then((matches) => {
+      if (!current) return;
+      const existingKeys = new Set(allTicketOptions.map((option) => option.key.toLowerCase()));
+      setIndexedNamedOptions(
+        matches
+          .filter((ticket) => ticket.pinned !== "yes" && !existingKeys.has(ticket.key.toLowerCase()))
+          .map((ticket) => ({
+            key: ticket.key,
+            client: ticket.client,
+            ticket: ticket.ticket,
+            source: "recent" as const,
+            friendlyName: ticket.friendlyName,
+          })),
+      );
+    }).catch((error) => console.error("Failed to search named tickets", error));
+    return () => { current = false; };
+  }, [ticketSearch]);
   const ticketOptionGroupsForPicker = [
     { label: "Pinned", options: ticketOptions.pinned },
     { label: "Worked Today", options: ticketOptions.workedToday },
     { label: "ToDo", options: ticketOptions.todos },
-    { label: "Recent", options: ticketOptions.recent },
+    { label: "Recent", options: [...ticketOptions.recent, ...indexedNamedOptions] },
   ].map((group) => ({
     ...group,
     options: group.options.filter((option) =>
@@ -119,7 +145,7 @@ function CalendarView({
       if (found)
         return prev.map((item) => (item.key === found.key ? { ...item, friendlyName } : item));
       if (!friendlyName.trim()) return prev;
-      return [...prev, { key, client, ticket, friendlyName, pinnedAt: "" }];
+      return [...prev, { key, client, ticket, friendlyName, pinned: "" }];
     });
   };
   const formatLocalDate = (date: Date): string => {
@@ -743,7 +769,7 @@ function CalendarView({
               <div className="modal-field ticket-picker-field">
                 <label>Select ticket already logged to</label>
                 <Combobox.Root<TicketOption>
-                  items={allTicketOptions}
+                  items={[...allTicketOptions, ...indexedNamedOptions]}
                   open={ticketPickerOpen}
                   onOpenChange={setTicketPickerOpen}
                   openOnInputClick
@@ -797,12 +823,7 @@ function CalendarView({
                             </div>
                           ) : null,
                         )}
-                        {allTicketOptions.length === 0 ||
-                        !allTicketOptions.some((option) =>
-                          `${option.friendlyName ?? ""} ${option.client}-${option.ticket}`
-                            .toLowerCase()
-                            .includes(ticketSearch.toLowerCase()),
-                        ) ? (
+                        {ticketOptionGroupsForPicker.every((group) => group.options.length === 0) ? (
                           <div className="ticket-picker-empty">No matching tickets</div>
                         ) : null}
                       </Combobox.List>
