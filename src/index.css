@@ -392,10 +392,60 @@ body {
   font-weight: bold;
 }
 
+.summary-ticket-card {
+  display: block;
+  padding: 10px;
+}
+
+.summary-ticket-main {
+  width: 100%;
+}
+
+.summary-ticket-title-row,
+.summary-ticket-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.summary-ticket-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summary-hours {
+  flex: 0 0 auto;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.summary-ticket-number {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .summary-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
+}
+
+.summary-logged-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.summary-logged-checkbox {
+  flex: 0 0 18px;
 }
 
 .summary-pin-button {

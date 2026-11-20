@@ -894,6 +894,13 @@ function App() {
     return friendlyName ? `${friendlyName} (${key})` : key;
   };
 
+  const getSummaryTicketName = (client: string, ticket: string): string | null =>
+    pinnedTickets
+      .find(
+        (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+      )
+      ?.friendlyName?.trim() || null;
+
   const openTicketNameModal = (client: string, ticket: string): void => {
     const existingName = pinnedTickets.find(
       (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
@@ -1532,58 +1539,80 @@ function App() {
                     {getSummary().map((item) => (
                       <li
                         key={item.key}
-                        className="client-item"
+                        className="client-item summary-ticket-card"
                         style={{
-                          flexDirection: "column",
-                          alignItems: "flex-start",
-                          position: "relative",
-                          paddingBottom: "35px",
                           opacity: item.allDisabled ? 0.5 : 1,
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            width: "100%",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div>
-                            {getJiraUrl(jiraBaseUrl, item.client, item.ticket) ? (
-                              <a
-                                href={getJiraUrl(jiraBaseUrl, item.client, item.ticket)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="summary-link"
-                                onClick={() => {
-                                  void navigator.clipboard.writeText(item.hours + "h");
-                                  setClickedSummary(item);
-                                }}
-                              >
-                                {item.isUntracked
-                                  ? `${item.client} (untracked)`
-                                  : getSummaryTicketLabel(item.client, item.ticket)}
-                              </a>
-                            ) : (
-                              <span className="summary-link">
-                                {item.isUntracked
-                                  ? `${item.client} (untracked)`
-                                  : getSummaryTicketLabel(item.client, item.ticket)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="summary-actions">
+                        <div className="summary-ticket-main">
+                          <div className="summary-ticket-title-row">
+                            <div className="summary-ticket-name">
+                              {getJiraUrl(jiraBaseUrl, item.client, item.ticket) ? (
+                                <a
+                                  href={getJiraUrl(jiraBaseUrl, item.client, item.ticket)!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="summary-link"
+                                  onClick={() => {
+                                    void navigator.clipboard.writeText(item.hours + "h");
+                                    setClickedSummary(item);
+                                  }}
+                                >
+                                  {item.isUntracked
+                                    ? `${item.client} (untracked)`
+                                    : getSummaryTicketName(item.client, item.ticket) ||
+                                      getSummaryTicketLabel(item.client, item.ticket)}
+                                </a>
+                              ) : (
+                                <span className="summary-link">
+                                  {item.isUntracked
+                                    ? `${item.client} (untracked)`
+                                    : getSummaryTicketName(item.client, item.ticket) ||
+                                      getSummaryTicketLabel(item.client, item.ticket)}
+                                </span>
+                              )}
+                            </div>
                             <div className="summary-hours">{item.hours}h</div>
-                            {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
-                              <button
-                                className="summary-pin-button"
-                                onClick={() => handlePinSummaryTicket(item.client, item.ticket)}
-                                title="Pin"
-                              >
-                                Pin
-                              </button>
+                          </div>
+                          <div className="summary-ticket-bottom-row">
+                            {!item.isUntracked && (
+                              <span className="summary-ticket-number">{`${item.client}-${item.ticket}`}</span>
                             )}
+                            <div className="summary-actions">
+                              {!item.isUntracked && (
+                                <label className="summary-logged-control">
+                                  <Checkbox.Root
+                                    className="todo-checkbox summary-logged-checkbox"
+                                    checked={item.allDisabled}
+                                    indeterminate={item.isIndeterminate}
+                                    onCheckedChange={(checked) =>
+                                      toggleSummaryEntries(item.entryIds, checked)
+                                    }
+                                    aria-label="Is logged"
+                                  >
+                                    <Checkbox.Indicator className="todo-checkbox-indicator">
+                                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                                        {item.isIndeterminate ? (
+                                          <path d="M3 8h10" />
+                                        ) : (
+                                          <path d="M3.5 8.2 6.6 11 12.5 4.8" />
+                                        )}
+                                      </svg>
+                                    </Checkbox.Indicator>
+                                  </Checkbox.Root>
+                                  <span>Is logged</span>
+                                </label>
+                              )}
+                              {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
+                                <button
+                                  className="summary-pin-button"
+                                  onClick={() => handlePinSummaryTicket(item.client, item.ticket)}
+                                  title="Pin"
+                                >
+                                  Pin
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                         {item.descriptions.length > 0 && (
@@ -1601,24 +1630,6 @@ function App() {
                                 </li>
                               ))}
                           </ul>
-                        )}
-                        {!item.isUntracked && (
-                          <div style={{ position: "absolute", bottom: "10px", right: "10px" }}>
-                            <input
-                              type="checkbox"
-                              checked={item.allDisabled}
-                              ref={(el) => {
-                                if (el) el.indeterminate = item.isIndeterminate;
-                              }}
-                              onChange={(e) =>
-                                toggleSummaryEntries(item.entryIds, e.target.checked)
-                              }
-                              style={{
-                                marginBottom: "0",
-                              }}
-                              title="Toggle all entries for this ticket"
-                            />
-                          </div>
                         )}
                       </li>
                     ))}
