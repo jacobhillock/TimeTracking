@@ -265,7 +265,12 @@ function toPinnedTicketRecord(ticket: PinnedTicket | LegacyPinnedTicket): Pinned
 }
 
 function fromPinnedTicketRecord(record: PinnedTicketRecord): PinnedTicket {
-  const { clientLookup: _clientLookup, ticketLookup: _ticketLookup, nameLookup: _nameLookup, ...ticket } = record;
+  const {
+    clientLookup: _clientLookup,
+    ticketLookup: _ticketLookup,
+    nameLookup: _nameLookup,
+    ...ticket
+  } = record;
   return ticket;
 }
 
@@ -280,9 +285,7 @@ export async function getPinnedTickets(): Promise<PinnedTicket[]> {
   return records.map(fromPinnedTicketRecord);
 }
 
-export async function savePinnedTickets(
-  tickets: PinnedTicket[],
-): Promise<void> {
+export async function savePinnedTickets(tickets: PinnedTicket[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(PINNED_TICKET_STORE_NAME, "readwrite");
   await tx.store.clear();
@@ -290,8 +293,13 @@ export async function savePinnedTickets(
   await tx.done;
 }
 
-export async function findPinnedTicket(client: string, ticket: string): Promise<PinnedTicket | undefined> {
-  const record = await (await getDB())
+export async function findPinnedTicket(
+  client: string,
+  ticket: string,
+): Promise<PinnedTicket | undefined> {
+  const record = await (
+    await getDB()
+  )
     .transaction(PINNED_TICKET_STORE_NAME, "readonly")
     .store.index(PINNED_TICKET_CLIENT_TICKET_INDEX)
     .get([client.trim().toLocaleLowerCase(), ticket.trim().toLocaleLowerCase()]);
@@ -310,7 +318,9 @@ export async function searchPinnedTicketsByName(query: string): Promise<PinnedTi
 }
 
 export async function getPinnedTicketsByStatus(): Promise<PinnedTicket[]> {
-  const records = await (await getDB())
+  const records = await (
+    await getDB()
+  )
     .transaction(PINNED_TICKET_STORE_NAME, "readonly")
     .store.index(PINNED_TICKET_PINNED_INDEX)
     .getAll("yes");

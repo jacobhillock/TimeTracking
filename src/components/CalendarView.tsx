@@ -83,22 +83,28 @@ function CalendarView({
       setIndexedNamedOptions([]);
       return;
     }
-    void searchPinnedTicketsByName(query).then((matches) => {
-      if (!current) return;
-      const existingKeys = new Set(allTicketOptions.map((option) => option.key.toLowerCase()));
-      setIndexedNamedOptions(
-        matches
-          .filter((ticket) => ticket.pinned !== "yes" && !existingKeys.has(ticket.key.toLowerCase()))
-          .map((ticket) => ({
-            key: ticket.key,
-            client: ticket.client,
-            ticket: ticket.ticket,
-            source: "recent" as const,
-            friendlyName: ticket.friendlyName,
-          })),
-      );
-    }).catch((error) => console.error("Failed to search named tickets", error));
-    return () => { current = false; };
+    void searchPinnedTicketsByName(query)
+      .then((matches) => {
+        if (!current) return;
+        const existingKeys = new Set(allTicketOptions.map((option) => option.key.toLowerCase()));
+        setIndexedNamedOptions(
+          matches
+            .filter(
+              (ticket) => ticket.pinned !== "yes" && !existingKeys.has(ticket.key.toLowerCase()),
+            )
+            .map((ticket) => ({
+              key: ticket.key,
+              client: ticket.client,
+              ticket: ticket.ticket,
+              source: "recent" as const,
+              friendlyName: ticket.friendlyName,
+            })),
+        );
+      })
+      .catch((error) => console.error("Failed to search named tickets", error));
+    return () => {
+      current = false;
+    };
   }, [ticketSearch]);
   const ticketOptionGroupsForPicker = [
     { label: "Pinned", options: ticketOptions.pinned },
@@ -823,7 +829,9 @@ function CalendarView({
                             </div>
                           ) : null,
                         )}
-                        {ticketOptionGroupsForPicker.every((group) => group.options.length === 0) ? (
+                        {ticketOptionGroupsForPicker.every(
+                          (group) => group.options.length === 0,
+                        ) ? (
                           <div className="ticket-picker-empty">No matching tickets</div>
                         ) : null}
                       </Combobox.List>

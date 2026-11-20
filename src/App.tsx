@@ -916,9 +916,7 @@ function App() {
     );
     if (namedTicket?.friendlyName?.trim()) {
       setPinnedTickets((prev) =>
-        prev.map((item) =>
-          item.key === namedTicket.key ? { ...item, pinned: "yes" } : item,
-        ),
+        prev.map((item) => (item.key === namedTicket.key ? { ...item, pinned: "yes" } : item)),
       );
       return;
     }
