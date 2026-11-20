@@ -390,6 +390,7 @@ function App() {
     ticket: string;
     pinnedKey?: string;
     pinOnSave?: boolean;
+    isDuplicate?: boolean;
   } | null>(null);
   const [ticketNameDraft, setTicketNameDraft] = useState("");
   const [ticketNumberDraft, setTicketNumberDraft] = useState("");
@@ -880,7 +881,7 @@ function App() {
     const lookup = toTicketKeyLookup(client, ticket);
     return pinnedTickets.some(
       (pinned) =>
-        Boolean(pinned.pinnedAt) && toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
+        pinned.pinned === "yes" && toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
     );
   };
 
@@ -892,6 +893,13 @@ function App() {
     const key = `${client}-${ticket}`;
     return friendlyName ? `${friendlyName} (${key})` : key;
   };
+
+  const getSummaryTicketName = (client: string, ticket: string): string | null =>
+    pinnedTickets
+      .find(
+        (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+      )
+      ?.friendlyName?.trim() || null;
 
   const openTicketNameModal = (client: string, ticket: string): void => {
     const existingName = pinnedTickets.find(
@@ -908,13 +916,17 @@ function App() {
     );
     if (namedTicket?.friendlyName?.trim()) {
       setPinnedTickets((prev) =>
-        prev.map((item) =>
-          item.key === namedTicket.key ? { ...item, pinnedAt: item.pinnedAt || dateKey } : item,
-        ),
+        prev.map((item) => (item.key === namedTicket.key ? { ...item, pinned: "yes" } : item)),
       );
       return;
     }
     openTicketNameModal(client, ticket);
+  };
+
+  const openDuplicateTicketModal = (ticket: PinnedTicket): void => {
+    setTicketNameTarget({ client: ticket.client, ticket: "", pinOnSave: true, isDuplicate: true });
+    setTicketNameDraft(ticket.friendlyName ?? "");
+    setTicketNumberDraft("");
   };
 
   const closeTicketNameModal = (): void => {
@@ -959,14 +971,14 @@ function App() {
                 client,
                 ticket,
                 friendlyName,
-                pinnedAt: item.pinnedAt || (ticketNameTarget.pinOnSave ? dateKey : ""),
+                pinned: item.pinned === "yes" || !ticketNameTarget.pinOnSave ? item.pinned : "yes",
               }
             : item,
         );
       }
       return [
         ...prev,
-        { key, client, ticket, friendlyName, pinnedAt: ticketNameTarget.pinOnSave ? dateKey : "" },
+        { key, client, ticket, friendlyName, pinned: ticketNameTarget.pinOnSave ? "yes" : "" },
       ];
     });
     closeTicketNameModal();
@@ -983,7 +995,7 @@ function App() {
       return next;
     });
     setPinnedTickets((prev) =>
-      prev.map((ticket) => (ticket.key === key ? { ...ticket, pinnedAt: "" } : ticket)),
+      prev.map((ticket) => (ticket.key === key ? { ...ticket, pinned: "" } : ticket)),
     );
   };
 
@@ -1074,7 +1086,7 @@ function App() {
     const seenGlobal = new Set<string>();
 
     pinnedTickets
-      .filter((ticket) => Boolean(ticket.pinnedAt))
+      .filter((ticket) => ticket.pinned === "yes")
       .forEach((pinned) => {
         const lookup = toTicketKeyLookup(pinned.client, pinned.ticket);
         if (seenGlobal.has(lookup)) return;
@@ -1196,7 +1208,7 @@ function App() {
   const ticketOptionGroups = getTicketOptionGroups();
 
   const pinnedTicketsForDisplay = pinnedTickets
-    .filter((ticket) => Boolean(ticket.pinnedAt))
+    .filter((ticket) => ticket.pinned === "yes")
     .map((ticket) => ticket)
     .map((ticket) => {
       const lookup = toTicketKeyLookup(ticket.client, ticket.ticket);
@@ -1525,58 +1537,80 @@ function App() {
                     {getSummary().map((item) => (
                       <li
                         key={item.key}
-                        className="client-item"
+                        className="client-item summary-ticket-card"
                         style={{
-                          flexDirection: "column",
-                          alignItems: "flex-start",
-                          position: "relative",
-                          paddingBottom: "35px",
                           opacity: item.allDisabled ? 0.5 : 1,
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            width: "100%",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div>
-                            {getJiraUrl(jiraBaseUrl, item.client, item.ticket) ? (
-                              <a
-                                href={getJiraUrl(jiraBaseUrl, item.client, item.ticket)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="summary-link"
-                                onClick={() => {
-                                  void navigator.clipboard.writeText(item.hours + "h");
-                                  setClickedSummary(item);
-                                }}
-                              >
-                                {item.isUntracked
-                                  ? `${item.client} (untracked)`
-                                  : getSummaryTicketLabel(item.client, item.ticket)}
-                              </a>
-                            ) : (
-                              <span className="summary-link">
-                                {item.isUntracked
-                                  ? `${item.client} (untracked)`
-                                  : getSummaryTicketLabel(item.client, item.ticket)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="summary-actions">
+                        <div className="summary-ticket-main">
+                          <div className="summary-ticket-title-row">
+                            <div className="summary-ticket-name">
+                              {getJiraUrl(jiraBaseUrl, item.client, item.ticket) ? (
+                                <a
+                                  href={getJiraUrl(jiraBaseUrl, item.client, item.ticket)!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="summary-link"
+                                  onClick={() => {
+                                    void navigator.clipboard.writeText(item.hours + "h");
+                                    setClickedSummary(item);
+                                  }}
+                                >
+                                  {item.isUntracked
+                                    ? `${item.client} (untracked)`
+                                    : getSummaryTicketName(item.client, item.ticket) ||
+                                      getSummaryTicketLabel(item.client, item.ticket)}
+                                </a>
+                              ) : (
+                                <span className="summary-link">
+                                  {item.isUntracked
+                                    ? `${item.client} (untracked)`
+                                    : getSummaryTicketName(item.client, item.ticket) ||
+                                      getSummaryTicketLabel(item.client, item.ticket)}
+                                </span>
+                              )}
+                            </div>
                             <div className="summary-hours">{item.hours}h</div>
-                            {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
-                              <button
-                                className="summary-pin-button"
-                                onClick={() => handlePinSummaryTicket(item.client, item.ticket)}
-                                title="Pin"
-                              >
-                                Pin
-                              </button>
+                          </div>
+                          <div className="summary-ticket-bottom-row">
+                            {!item.isUntracked && (
+                              <span className="summary-ticket-number">{`${item.client}-${item.ticket}`}</span>
                             )}
+                            <div className="summary-actions">
+                              {!item.isUntracked && (
+                                <label className="summary-logged-control">
+                                  <Checkbox.Root
+                                    className="todo-checkbox summary-logged-checkbox"
+                                    checked={item.allDisabled}
+                                    indeterminate={item.isIndeterminate}
+                                    onCheckedChange={(checked) =>
+                                      toggleSummaryEntries(item.entryIds, checked)
+                                    }
+                                    aria-label="Is logged"
+                                  >
+                                    <Checkbox.Indicator className="todo-checkbox-indicator">
+                                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                                        {item.isIndeterminate ? (
+                                          <path d="M3 8h10" />
+                                        ) : (
+                                          <path d="M3.5 8.2 6.6 11 12.5 4.8" />
+                                        )}
+                                      </svg>
+                                    </Checkbox.Indicator>
+                                  </Checkbox.Root>
+                                  <span>Is logged</span>
+                                </label>
+                              )}
+                              {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
+                                <button
+                                  className="summary-pin-button"
+                                  onClick={() => handlePinSummaryTicket(item.client, item.ticket)}
+                                  title="Pin"
+                                >
+                                  Pin
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                         {item.descriptions.length > 0 && (
@@ -1594,24 +1628,6 @@ function App() {
                                 </li>
                               ))}
                           </ul>
-                        )}
-                        {!item.isUntracked && (
-                          <div style={{ position: "absolute", bottom: "10px", right: "10px" }}>
-                            <input
-                              type="checkbox"
-                              checked={item.allDisabled}
-                              ref={(el) => {
-                                if (el) el.indeterminate = item.isIndeterminate;
-                              }}
-                              onChange={(e) =>
-                                toggleSummaryEntries(item.entryIds, e.target.checked)
-                              }
-                              style={{
-                                marginBottom: "0",
-                              }}
-                              title="Toggle all entries for this ticket"
-                            />
-                          </div>
                         )}
                       </li>
                     ))}
@@ -1655,39 +1671,44 @@ function App() {
                             </div>
                           </div>
                         ) : (
-                          <div className="pinned-ticket-header">
-                            <span className="pinned-ticket-label">
-                              {ticket.friendlyName?.trim() ? (
-                                <>
-                                  {ticket.friendlyName.trim()} (
-                                  {renderTicketKeyLink(
+                          <>
+                            <div className="pinned-ticket-header">
+                              <span className="pinned-ticket-label">
+                                {ticket.friendlyName?.trim() ? (
+                                  <>
+                                    {ticket.friendlyName.trim()} (
+                                    {renderTicketKeyLink(
+                                      jiraBaseUrl,
+                                      ticket.client,
+                                      ticket.ticket,
+                                      ticket.key,
+                                    )}
+                                    )
+                                  </>
+                                ) : (
+                                  renderTicketKeyLink(
                                     jiraBaseUrl,
                                     ticket.client,
                                     ticket.ticket,
                                     ticket.key,
-                                  )}
                                   )
-                                </>
-                              ) : (
-                                renderTicketKeyLink(
-                                  jiraBaseUrl,
-                                  ticket.client,
-                                  ticket.ticket,
-                                  ticket.key,
-                                )
-                              )}
-                            </span>
+                                )}
+                              </span>
+                              <div className="pinned-ticket-recent">
+                                Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
+                              </div>
+                            </div>
                             <div className="pinned-ticket-actions">
+                              <button onClick={() => openDuplicateTicketModal(ticket)}>
+                                Duplicate
+                              </button>
                               <button onClick={() => handleStartEditPinnedTicket(ticket)}>
                                 Edit Name
                               </button>
                               <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
                             </div>
-                          </div>
+                          </>
                         )}
-                        <div className="pinned-ticket-recent">
-                          Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
-                        </div>
                       </li>
                     ))}
                   </ul>
@@ -2278,7 +2299,9 @@ function App() {
               style={{ maxWidth: "400px" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3>Edit Pinned Ticket</h3>
+              <h3>
+                {ticketNameTarget.isDuplicate ? "Duplicate Pinned Ticket" : "Edit Pinned Ticket"}
+              </h3>
               <div className="ticket-name-modal-row">
                 <div className="modal-field">
                   <label htmlFor="ticket-space-input">Space</label>
