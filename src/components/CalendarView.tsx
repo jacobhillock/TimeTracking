@@ -329,8 +329,7 @@ function CalendarView({
     }
   }, [resizingEntry, resizeEdge]);
 
-  useEffect(() => {
-  }, [editingEntry?.id]);
+  useEffect(() => {}, [editingEntry?.id]);
 
   useEffect(() => {
     resizeDescriptionTextarea(descriptionRef.current);
@@ -775,17 +774,35 @@ function CalendarView({
                   {ticketPickerOpen && (
                     <div className="ticket-picker-popup">
                       <Combobox.List>
-                        {ticketOptionGroupsForPicker.map((group) => group.options.length > 0 ? (
-                          <div className="ticket-picker-group" role="group" aria-label={group.label} key={group.label}>
-                            <div className="ticket-picker-group-label">{group.label}</div>
-                            {group.options.map((option) => (
-                              <Combobox.Item className="ticket-picker-item" key={`${group.label}-${option.key}`} value={option}>
-                                {option.friendlyName?.trim() ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})` : `${option.client}-${option.ticket}`}
-                              </Combobox.Item>
-                            ))}
-                          </div>
-                        ) : null)}
-                        {allTicketOptions.length === 0 || !allTicketOptions.some((option) => `${option.friendlyName ?? ""} ${option.client}-${option.ticket}`.toLowerCase().includes(ticketSearch.toLowerCase())) ? (
+                        {ticketOptionGroupsForPicker.map((group) =>
+                          group.options.length > 0 ? (
+                            <div
+                              className="ticket-picker-group"
+                              role="group"
+                              aria-label={group.label}
+                              key={group.label}
+                            >
+                              <div className="ticket-picker-group-label">{group.label}</div>
+                              {group.options.map((option) => (
+                                <Combobox.Item
+                                  className="ticket-picker-item"
+                                  key={`${group.label}-${option.key}`}
+                                  value={option}
+                                >
+                                  {option.friendlyName?.trim()
+                                    ? `${option.friendlyName.trim()} (${option.client}-${option.ticket})`
+                                    : `${option.client}-${option.ticket}`}
+                                </Combobox.Item>
+                              ))}
+                            </div>
+                          ) : null,
+                        )}
+                        {allTicketOptions.length === 0 ||
+                        !allTicketOptions.some((option) =>
+                          `${option.friendlyName ?? ""} ${option.client}-${option.ticket}`
+                            .toLowerCase()
+                            .includes(ticketSearch.toLowerCase()),
+                        ) ? (
                           <div className="ticket-picker-empty">No matching tickets</div>
                         ) : null}
                       </Combobox.List>
@@ -795,18 +812,42 @@ function CalendarView({
               </div>
               <div className="modal-field ticket-space-field">
                 <label>Space</label>
-                <select value={editingEntry.client} onChange={(e) => onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)} tabIndex={4}>
+                <select
+                  value={editingEntry.client}
+                  onChange={(e) =>
+                    onEditEntry({ ...editingEntry, client: e.target.value }, editingEntryDateKey)
+                  }
+                  tabIndex={4}
+                >
                   <option value="">Select Space</option>
-                  {clients.map((client) => <option key={client} value={client}>{client}</option>)}
+                  {clients.map((client) => (
+                    <option key={client} value={client}>
+                      {client}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="modal-field ticket-number-field">
                 <label>Ticket #</label>
-                <input type="text" value={editingEntry.ticket} onChange={(e) => onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)} tabIndex={5} />
+                <input
+                  type="text"
+                  value={editingEntry.ticket}
+                  onChange={(e) =>
+                    onEditEntry({ ...editingEntry, ticket: e.target.value }, editingEntryDateKey)
+                  }
+                  tabIndex={5}
+                />
               </div>
               <div className="modal-field ticket-name-field">
                 <label htmlFor="editing-ticket-name">Ticket name</label>
-                <input id="editing-ticket-name" type="text" value={editingTicketName} onChange={(e) => updateEditingTicketName(e.target.value)} placeholder="Add a name for this ticket" tabIndex={6} />
+                <input
+                  id="editing-ticket-name"
+                  type="text"
+                  value={editingTicketName}
+                  onChange={(e) => updateEditingTicketName(e.target.value)}
+                  placeholder="Add a name for this ticket"
+                  tabIndex={6}
+                />
               </div>
             </div>
             <div className="modal-field">

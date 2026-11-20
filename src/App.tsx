@@ -1663,39 +1663,41 @@ function App() {
                           </div>
                         ) : (
                           <>
-                          <div className="pinned-ticket-header">
-                            <span className="pinned-ticket-label">
-                              {ticket.friendlyName?.trim() ? (
-                                <>
-                                  {ticket.friendlyName.trim()} (
-                                  {renderTicketKeyLink(
+                            <div className="pinned-ticket-header">
+                              <span className="pinned-ticket-label">
+                                {ticket.friendlyName?.trim() ? (
+                                  <>
+                                    {ticket.friendlyName.trim()} (
+                                    {renderTicketKeyLink(
+                                      jiraBaseUrl,
+                                      ticket.client,
+                                      ticket.ticket,
+                                      ticket.key,
+                                    )}
+                                    )
+                                  </>
+                                ) : (
+                                  renderTicketKeyLink(
                                     jiraBaseUrl,
                                     ticket.client,
                                     ticket.ticket,
                                     ticket.key,
-                                  )}
                                   )
-                                </>
-                              ) : (
-                                renderTicketKeyLink(
-                                  jiraBaseUrl,
-                                  ticket.client,
-                                  ticket.ticket,
-                                  ticket.key,
-                                )
-                              )}
-                            </span>
-                            <div className="pinned-ticket-recent">
-                              Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
+                                )}
+                              </span>
+                              <div className="pinned-ticket-recent">
+                                Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
+                              </div>
                             </div>
-                          </div>
-                          <div className="pinned-ticket-actions">
-                            <button onClick={() => openDuplicateTicketModal(ticket)}>Duplicate</button>
-                            <button onClick={() => handleStartEditPinnedTicket(ticket)}>
-                              Edit Name
-                            </button>
-                            <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
-                          </div>
+                            <div className="pinned-ticket-actions">
+                              <button onClick={() => openDuplicateTicketModal(ticket)}>
+                                Duplicate
+                              </button>
+                              <button onClick={() => handleStartEditPinnedTicket(ticket)}>
+                                Edit Name
+                              </button>
+                              <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
+                            </div>
                           </>
                         )}
                       </li>
@@ -2288,7 +2290,9 @@ function App() {
               style={{ maxWidth: "400px" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3>{ticketNameTarget.isDuplicate ? "Duplicate Pinned Ticket" : "Edit Pinned Ticket"}</h3>
+              <h3>
+                {ticketNameTarget.isDuplicate ? "Duplicate Pinned Ticket" : "Edit Pinned Ticket"}
+              </h3>
               <div className="ticket-name-modal-row">
                 <div className="modal-field">
                   <label htmlFor="ticket-space-input">Space</label>

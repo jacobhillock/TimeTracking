@@ -866,11 +866,21 @@ a.summary-link:hover {
     "space number name";
 }
 
-.ticket-picker-field { grid-area: picker; }
-.ticket-picker-field { position: relative; }
-.ticket-space-field { grid-area: space; }
-.ticket-number-field { grid-area: number; }
-.ticket-name-field { grid-area: name; }
+.ticket-picker-field {
+  grid-area: picker;
+}
+.ticket-picker-field {
+  position: relative;
+}
+.ticket-space-field {
+  grid-area: space;
+}
+.ticket-number-field {
+  grid-area: number;
+}
+.ticket-name-field {
+  grid-area: name;
+}
 
 .ticket-picker-field [data-combobox-input] {
   width: 100%;
@@ -897,7 +907,10 @@ a.summary-link:hover {
   box-shadow: var(--shadow-lg);
 }
 
-.ticket-picker-empty { padding: 8px 10px; color: var(--color-text-muted); }
+.ticket-picker-empty {
+  padding: 8px 10px;
+  color: var(--color-text-muted);
+}
 .ticket-picker-group-label {
   padding: 7px 10px 4px;
   color: var(--color-text-muted);
@@ -907,8 +920,13 @@ a.summary-link:hover {
   text-transform: uppercase;
 }
 
-.ticket-picker-item { padding: 8px 10px; cursor: pointer; }
-.ticket-picker-item[data-highlighted] { background: var(--color-surface-hover); }
+.ticket-picker-item {
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.ticket-picker-item[data-highlighted] {
+  background: var(--color-surface-hover);
+}
 
 .modal-helper-text {
   margin-top: 6px;
