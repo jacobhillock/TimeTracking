@@ -902,6 +902,21 @@ function App() {
     setTicketNumberDraft(ticket);
   };
 
+  const handlePinSummaryTicket = (client: string, ticket: string): void => {
+    const namedTicket = pinnedTickets.find(
+      (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
+    );
+    if (namedTicket?.friendlyName?.trim()) {
+      setPinnedTickets((prev) =>
+        prev.map((item) =>
+          item.key === namedTicket.key ? { ...item, pinnedAt: item.pinnedAt || dateKey } : item,
+        ),
+      );
+      return;
+    }
+    openTicketNameModal(client, ticket);
+  };
+
   const closeTicketNameModal = (): void => {
     setTicketNameTarget(null);
     setTicketNameDraft("");
@@ -1556,10 +1571,10 @@ function App() {
                             {!item.isUntracked && !isTicketPinned(item.client, item.ticket) && (
                               <button
                                 className="summary-pin-button"
-                                onClick={() => openTicketNameModal(item.client, item.ticket)}
-                                title="Set Name"
+                                onClick={() => handlePinSummaryTicket(item.client, item.ticket)}
+                                title="Pin"
                               >
-                                Set Name
+                                Pin
                               </button>
                             )}
                           </div>
