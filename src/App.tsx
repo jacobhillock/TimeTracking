@@ -389,6 +389,7 @@ function App() {
     client: string;
     ticket: string;
     pinnedKey?: string;
+    pinOnSave?: boolean;
   } | null>(null);
   const [ticketNameDraft, setTicketNameDraft] = useState("");
   const [ticketNumberDraft, setTicketNumberDraft] = useState("");
@@ -878,7 +879,8 @@ function App() {
   const isTicketPinned = (client: string, ticket: string): boolean => {
     const lookup = toTicketKeyLookup(client, ticket);
     return pinnedTickets.some(
-      (pinned) => toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
+      (pinned) =>
+        Boolean(pinned.pinnedAt) && toTicketKeyLookup(pinned.client, pinned.ticket) === lookup,
     );
   };
 
@@ -895,7 +897,7 @@ function App() {
     const existingName = pinnedTickets.find(
       (item) => toTicketKeyLookup(item.client, item.ticket) === toTicketKeyLookup(client, ticket),
     )?.friendlyName;
-    setTicketNameTarget({ client, ticket });
+    setTicketNameTarget({ client, ticket, pinOnSave: true });
     setTicketNameDraft(existingName ?? "");
     setTicketNumberDraft(ticket);
   };
@@ -935,10 +937,22 @@ function App() {
       );
       if (existing) {
         return prev.map((item) =>
-          item.key === existing.key ? { ...item, key, client, ticket, friendlyName } : item,
+          item.key === existing.key
+            ? {
+                ...item,
+                key,
+                client,
+                ticket,
+                friendlyName,
+                pinnedAt: item.pinnedAt || (ticketNameTarget.pinOnSave ? dateKey : ""),
+              }
+            : item,
         );
       }
-      return [...prev, { key, client, ticket, friendlyName, pinnedAt: dateKey }];
+      return [
+        ...prev,
+        { key, client, ticket, friendlyName, pinnedAt: ticketNameTarget.pinOnSave ? dateKey : "" },
+      ];
     });
     closeTicketNameModal();
   };
@@ -953,7 +967,9 @@ function App() {
       delete next[key];
       return next;
     });
-    setPinnedTickets((prev) => prev.filter((ticket) => ticket.key !== key));
+    setPinnedTickets((prev) =>
+      prev.map((ticket) => (ticket.key === key ? { ...ticket, pinnedAt: "" } : ticket)),
+    );
   };
 
   const handleStartEditPinnedTicket = (ticket: PinnedTicket): void => {
@@ -1042,22 +1058,24 @@ function App() {
     const groups: TicketOptionGroups = { workedToday: [], pinned: [], todos: [], recent: [] };
     const seenGlobal = new Set<string>();
 
-    pinnedTickets.forEach((pinned) => {
-      const lookup = toTicketKeyLookup(pinned.client, pinned.ticket);
-      if (seenGlobal.has(lookup)) return;
+    pinnedTickets
+      .filter((ticket) => Boolean(ticket.pinnedAt))
+      .forEach((pinned) => {
+        const lookup = toTicketKeyLookup(pinned.client, pinned.ticket);
+        if (seenGlobal.has(lookup)) return;
 
-      const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate;
-      groups.pinned.push({
-        key: pinned.key,
-        client: pinned.client,
-        ticket: pinned.ticket,
-        source: "pinned",
-        friendlyName: pinned.friendlyName,
-        lastLoggedDate,
-        sortByRecentDate: lastLoggedDate,
+        const lastLoggedDate = recentTicketStats[lookup]?.lastLoggedDate;
+        groups.pinned.push({
+          key: pinned.key,
+          client: pinned.client,
+          ticket: pinned.ticket,
+          source: "pinned",
+          friendlyName: pinned.friendlyName,
+          lastLoggedDate,
+          sortByRecentDate: lastLoggedDate,
+        });
+        seenGlobal.add(lookup);
       });
-      seenGlobal.add(lookup);
-    });
 
     const workedTodaySeen = new Set<string>();
     const workedTodayEntries = entries[dateKey] || [];
@@ -1137,6 +1155,20 @@ function App() {
       seenGlobal.add(lookup);
     });
 
+    pinnedTickets.forEach((named) => {
+      const lookup = toTicketKeyLookup(named.client, named.ticket);
+      if (seenGlobal.has(lookup)) return;
+      groups.recent.push({
+        key: named.key,
+        client: named.client,
+        ticket: named.ticket,
+        source: "recent",
+        friendlyName: named.friendlyName,
+        lastLoggedDate: recentTicketStats[lookup]?.lastLoggedDate,
+      });
+      seenGlobal.add(lookup);
+    });
+
     groups.workedToday.sort(sortTicketOptions);
     groups.pinned.sort(sortTicketOptions);
     groups.todos.sort(sortTicketOptions);
@@ -1148,7 +1180,9 @@ function App() {
 
   const ticketOptionGroups = getTicketOptionGroups();
 
-  const pinnedTicketsForDisplay = [...pinnedTickets]
+  const pinnedTicketsForDisplay = pinnedTickets
+    .filter((ticket) => Boolean(ticket.pinnedAt))
+    .map((ticket) => ticket)
     .map((ticket) => {
       const lookup = toTicketKeyLookup(ticket.client, ticket.ticket);
       return {
@@ -1573,7 +1607,7 @@ function App() {
               </CollapsibleSection>
 
               <CollapsibleSection
-                title="Labeled Tickets"
+                title="Pinned Tickets"
                 sectionName="pinnedTickets"
                 isCollapsed={collapsedSections.pinnedTickets}
                 onToggle={() => toggleSection("pinnedTickets")}
@@ -1632,7 +1666,7 @@ function App() {
                               <button onClick={() => handleStartEditPinnedTicket(ticket)}>
                                 Edit Name
                               </button>
-                              <button onClick={() => unpinTicket(ticket.key)}>Remove Name</button>
+                              <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
                             </div>
                           </div>
                         )}
@@ -2229,7 +2263,7 @@ function App() {
               style={{ maxWidth: "400px" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3>Edit Labeled Ticket</h3>
+              <h3>Edit Pinned Ticket</h3>
               <div className="ticket-name-modal-row">
                 <div className="modal-field">
                   <label htmlFor="ticket-space-input">Space</label>
