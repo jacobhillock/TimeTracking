@@ -1708,9 +1708,10 @@ html.mobile-view .sidebar-toggle-button {
 
 .pinned-ticket-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 4px 10px;
 }
 
 .pinned-ticket-actions,
@@ -1719,6 +1720,12 @@ html.mobile-view .sidebar-toggle-button {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.pinned-ticket-actions {
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .pinned-ticket-edit {
@@ -1733,12 +1740,16 @@ html.mobile-view .sidebar-toggle-button {
 }
 
 .pinned-ticket-label {
+  flex: 1 1 12rem;
+  min-width: min-content;
   font-weight: 600;
   font-size: 13px;
   overflow-wrap: break-word;
 }
 
 .pinned-ticket-recent {
+  flex: 0 1 auto;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--color-text-muted);
 }

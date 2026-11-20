@@ -390,6 +390,7 @@ function App() {
     ticket: string;
     pinnedKey?: string;
     pinOnSave?: boolean;
+    isDuplicate?: boolean;
   } | null>(null);
   const [ticketNameDraft, setTicketNameDraft] = useState("");
   const [ticketNumberDraft, setTicketNumberDraft] = useState("");
@@ -915,6 +916,12 @@ function App() {
       return;
     }
     openTicketNameModal(client, ticket);
+  };
+
+  const openDuplicateTicketModal = (ticket: PinnedTicket): void => {
+    setTicketNameTarget({ client: ticket.client, ticket: "", pinOnSave: true, isDuplicate: true });
+    setTicketNameDraft(ticket.friendlyName ?? "");
+    setTicketNumberDraft("");
   };
 
   const closeTicketNameModal = (): void => {
@@ -1655,6 +1662,7 @@ function App() {
                             </div>
                           </div>
                         ) : (
+                          <>
                           <div className="pinned-ticket-header">
                             <span className="pinned-ticket-label">
                               {ticket.friendlyName?.trim() ? (
@@ -1677,17 +1685,19 @@ function App() {
                                 )
                               )}
                             </span>
-                            <div className="pinned-ticket-actions">
-                              <button onClick={() => handleStartEditPinnedTicket(ticket)}>
-                                Edit Name
-                              </button>
-                              <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
+                            <div className="pinned-ticket-recent">
+                              Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
                             </div>
                           </div>
+                          <div className="pinned-ticket-actions">
+                            <button onClick={() => openDuplicateTicketModal(ticket)}>Duplicate</button>
+                            <button onClick={() => handleStartEditPinnedTicket(ticket)}>
+                              Edit Name
+                            </button>
+                            <button onClick={() => unpinTicket(ticket.key)}>Unpin</button>
+                          </div>
+                          </>
                         )}
-                        <div className="pinned-ticket-recent">
-                          Last logged: {ticket.lastLoggedDate || "> 7 days ago"}
-                        </div>
                       </li>
                     ))}
                   </ul>
@@ -2278,7 +2288,7 @@ function App() {
               style={{ maxWidth: "400px" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3>Edit Pinned Ticket</h3>
+              <h3>{ticketNameTarget.isDuplicate ? "Duplicate Pinned Ticket" : "Edit Pinned Ticket"}</h3>
               <div className="ticket-name-modal-row">
                 <div className="modal-field">
                   <label htmlFor="ticket-space-input">Space</label>
