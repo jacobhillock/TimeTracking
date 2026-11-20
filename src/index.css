@@ -859,6 +859,57 @@ a.summary-link:hover {
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1.5fr);
 }
 
+.modal-grid-row-ticket-editor {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1fr);
+  grid-template-areas:
+    "picker picker picker"
+    "space number name";
+}
+
+.ticket-picker-field { grid-area: picker; }
+.ticket-picker-field { position: relative; }
+.ticket-space-field { grid-area: space; }
+.ticket-number-field { grid-area: number; }
+.ticket-name-field { grid-area: name; }
+
+.ticket-picker-field [data-combobox-input] {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.ticket-picker-popup {
+  position: absolute;
+  top: calc(100% - 12px);
+  left: 0;
+  right: 0;
+  z-index: 11001;
+  max-height: 260px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.ticket-picker-empty { padding: 8px 10px; color: var(--color-text-muted); }
+.ticket-picker-group-label {
+  padding: 7px 10px 4px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ticket-picker-item { padding: 8px 10px; cursor: pointer; }
+.ticket-picker-item[data-highlighted] { background: var(--color-surface-hover); }
+
 .modal-helper-text {
   margin-top: 6px;
   font-size: 12px;
@@ -1197,6 +1248,11 @@ a.summary-link:hover {
   .modal-grid-row-three,
   .modal-grid-row-ticket {
     grid-template-columns: 1fr;
+  }
+
+  .modal-grid-row-ticket-editor {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "picker" "name" "space" "number";
   }
 }
 

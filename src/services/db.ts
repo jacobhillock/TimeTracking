@@ -3,10 +3,11 @@ import type { DBSchema, IDBPDatabase, IDBPObjectStore, IDBPTransaction } from "i
 import type { TimeEntry, Todo } from "./types";
 
 const DB_NAME = "timeTrackerDB";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 export const TIME_ENTRY_STORE_NAME = "timeEntries";
 export const TIME_ENTRY_DATE_INDEX = "by-date";
 export const TODO_STORE_NAME = "todos";
+export const PINNED_TICKET_STORE_NAME = "pinnedTickets";
 export const TODO_INDEX_COMPLETED = "by-completed";
 export const TODO_INDEX_COMPLETED_DATE = "by-completed-date";
 export const TODO_COMPLETED_FALSE = 0;
@@ -23,6 +24,11 @@ export interface TodoRecord extends Todo {
 }
 
 interface TimeTrackerDB extends DBSchema {
+  [PINNED_TICKET_STORE_NAME]: {
+    key: string;
+    value: import("../types/app").PinnedTicket;
+    indexes: never;
+  };
   [TIME_ENTRY_STORE_NAME]: {
     key: number;
     value: TimeEntryRecord;
@@ -40,7 +46,10 @@ interface TimeTrackerDB extends DBSchema {
   };
 }
 
-type StoreName = typeof TIME_ENTRY_STORE_NAME | typeof TODO_STORE_NAME;
+type StoreName =
+  | typeof TIME_ENTRY_STORE_NAME
+  | typeof TODO_STORE_NAME
+  | typeof PINNED_TICKET_STORE_NAME;
 type StoreValue<T extends StoreName> = TimeTrackerDB[T]["value"];
 type StoreKey<T extends StoreName> = TimeTrackerDB[T]["key"];
 type StoreIndexMap<T extends StoreName> = TimeTrackerDB[T]["indexes"];
@@ -202,6 +211,7 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
         if (oldVersion < 7) {
           ensureTodoIndexes(db, transaction);
         }
+        if (oldVersion < 8) db.createObjectStore(PINNED_TICKET_STORE_NAME, { keyPath: "key" });
       },
     });
     return dbInstance;
@@ -209,6 +219,20 @@ export async function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
     console.error("Failed to open IndexedDB:", error);
     throw new Error("Failed to initialize database");
   }
+}
+
+export async function getPinnedTickets(): Promise<import("../types/app").PinnedTicket[]> {
+  return (await getDB()).getAll(PINNED_TICKET_STORE_NAME);
+}
+
+export async function savePinnedTickets(
+  tickets: import("../types/app").PinnedTicket[],
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(PINNED_TICKET_STORE_NAME, "readwrite");
+  await tx.store.clear();
+  await Promise.all(tickets.map((ticket) => tx.store.put(ticket)));
+  await tx.done;
 }
 
 export async function migrateFromLocalStorage(): Promise<void> {

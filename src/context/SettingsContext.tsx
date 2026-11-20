@@ -1,7 +1,8 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import useLocalStorageState, { STORAGE_KEYS } from "../hooks/useLocalStorageState";
 import type { ClientColors, CollapsedSections, PinnedTicket, ViewMode } from "../types/app";
+import { getPinnedTickets, savePinnedTickets } from "../services/db";
 
 const DEFAULT_TAG_TYPES = ["Admin", "Research", "Development", "Design"];
 
@@ -156,10 +157,28 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     STORAGE_KEYS.COLLAPSED_SECTIONS,
     {},
   );
-  const [pinnedTickets, setPinnedTickets] = useLocalStorageState<PinnedTicket[]>(
-    STORAGE_KEYS.PINNED_TICKETS,
-    [],
-  );
+  const [pinnedTickets, setPinnedTickets] = useState<PinnedTicket[]>([]);
+  const [pinnedTicketsLoaded, setPinnedTicketsLoaded] = useState(false);
+  useEffect(() => {
+    void (async () => {
+      try {
+        let stored = await getPinnedTickets();
+        const legacy = localStorage.getItem(STORAGE_KEYS.PINNED_TICKETS);
+        if (!stored.length && legacy) {
+          stored = JSON.parse(legacy) as PinnedTicket[];
+          await savePinnedTickets(stored);
+        }
+        setPinnedTickets(stored);
+        localStorage.removeItem(STORAGE_KEYS.PINNED_TICKETS);
+      } catch (error) {
+        console.error("Failed to load pinned tickets", error);
+      }
+      setPinnedTicketsLoaded(true);
+    })();
+  }, []);
+  useEffect(() => {
+    if (pinnedTicketsLoaded) void savePinnedTickets(pinnedTickets);
+  }, [pinnedTickets, pinnedTicketsLoaded]);
   const [tagTypes, setTagTypes] = useLocalStorageState<string[]>(
     STORAGE_KEYS.TAG_TYPES,
     DEFAULT_TAG_TYPES,
