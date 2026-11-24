@@ -685,7 +685,11 @@ function CalendarView({
                       <span className="entry-duration">({durationHours}h)</span>
                     </div>
                     <div className="entry-description">{entry.description}</div>
-                    <div className="entry-hover-content" aria-hidden="true">
+                    <div
+                      className="entry-hover-content"
+                      aria-hidden="true"
+                      style={{ backgroundColor: clientColor, color: textColor }}
+                    >
                       <div className="entry-ticket-name">{displayName}</div>
                       {friendlyName && ticketNumber && (
                         <div className="entry-ticket-label">{ticketNumber}</div>

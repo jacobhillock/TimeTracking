@@ -690,7 +690,6 @@ a.summary-link:hover {
 
 .calendar-entry:hover,
 .calendar-entry-resizing {
-  background: var(--color-primary-hover);
   border-top-color: color-mix(in srgb, var(--color-page-text) 65%, var(--color-primary));
   border-bottom-color: color-mix(in srgb, var(--color-page-text) 65%, var(--color-primary-hover));
 }
@@ -705,7 +704,7 @@ a.summary-link:hover {
   min-height: max-content;
   padding: 4px;
   border-radius: 4px;
-  background: var(--color-primary-hover);
+  background: inherit;
   color: inherit;
   box-shadow: var(--shadow-sm);
   pointer-events: none;
@@ -714,7 +713,7 @@ a.summary-link:hover {
 
 .calendar-entry:hover {
   overflow: visible;
-  z-index: 20;
+  z-index: 30;
 }
 
 .calendar-entry:hover .entry-hover-content {
