@@ -695,6 +695,34 @@ a.summary-link:hover {
   border-bottom-color: color-mix(in srgb, var(--color-page-text) 65%, var(--color-primary-hover));
 }
 
+.entry-hover-content {
+  display: none;
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: max-content;
+  padding: 4px;
+  border-radius: 4px;
+  background: var(--color-primary-hover);
+  color: inherit;
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+
+.calendar-entry:hover {
+  overflow: visible;
+  z-index: 20;
+}
+
+.calendar-entry:hover .entry-hover-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .calendar-entry.disabled {
   opacity: 0.5;
   background: var(--color-border-muted);
@@ -732,9 +760,24 @@ a.summary-link:hover {
 }
 
 .entry-ticket-label {
+  overflow-wrap: anywhere;
+}
+
+.entry-ticket-name,
+.entry-time {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.entry-hover-content .entry-ticket-name,
+.entry-hover-content .entry-time,
+.entry-hover-content .entry-ticket-label,
+.entry-hover-content .entry-description {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
 .entry-duration {

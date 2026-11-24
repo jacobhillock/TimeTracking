@@ -119,7 +119,7 @@ function CalendarView({
         .includes(ticketSearch.toLowerCase()),
     ),
   }));
-  const getCalendarTicketLabel = (client: string, ticket: string): string => {
+  const getCalendarTicketName = (client: string, ticket: string): string => {
     const clientLookup = client.trim().toLowerCase();
     const ticketLookup = ticket.trim().toLowerCase();
     const option = allTicketOptions.find(
@@ -128,8 +128,7 @@ function CalendarView({
         item.ticket.trim().toLowerCase() === ticketLookup,
     );
     const friendlyName = option?.friendlyName?.trim();
-    const key = `${client}-${ticket}`;
-    return friendlyName ? `${friendlyName} (${key})` : key;
+    return friendlyName ?? "";
   };
   const editingTicketName =
     pinnedTickets.find(
@@ -641,6 +640,11 @@ function CalendarView({
                     (resizingEntry?.dateKey === dateKey &&
                       resizingEntry.ticket?.trim().toLowerCase() === ticketLookup));
                 const isResizingThisEntry = resizingEntry?.id === entry.id;
+                const friendlyName = entry.ticket
+                  ? getCalendarTicketName(entry.client, entry.ticket)
+                  : "";
+                const ticketNumber = entry.ticket ? `${entry.client}-${entry.ticket}` : "";
+                const displayName = friendlyName || ticketNumber || entry.client;
 
                 return (
                   <div
@@ -674,14 +678,25 @@ function CalendarView({
                       style={{ pointerEvents: "auto" }}
                     />
                     <div className="entry-client">
-                      <span className="entry-ticket-label">
-                        {entry.ticket
-                          ? getCalendarTicketLabel(entry.client, entry.ticket)
-                          : entry.client}
+                      <span className="entry-ticket-name">{displayName}</span>
+                      <span className="entry-time">
+                        {entry.startTime}–{entry.endTime} ({durationHours}h)
                       </span>
-                      <span className="entry-duration">({durationHours}h)</span>
+                      {friendlyName && ticketNumber && (
+                        <span className="entry-ticket-label">{ticketNumber}</span>
+                      )}
                     </div>
                     <div className="entry-description">{entry.description}</div>
+                    <div className="entry-hover-content" aria-hidden="true">
+                      <div className="entry-ticket-name">{displayName}</div>
+                      <div className="entry-time">
+                        {entry.startTime}–{entry.endTime} ({durationHours}h)
+                      </div>
+                      {friendlyName && ticketNumber && (
+                        <div className="entry-ticket-label">{ticketNumber}</div>
+                      )}
+                      {entry.description && <div className="entry-description">{entry.description}</div>}
+                    </div>
                     <button
                       className="entry-delete"
                       onMouseDown={(e) => e.stopPropagation()}
