@@ -754,20 +754,40 @@ a.summary-link:hover {
 .entry-client {
   font-weight: 600;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .entry-ticket-label {
-  overflow-wrap: anywhere;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
-.entry-ticket-name,
-.entry-time {
+.entry-ticket-name {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.entry-duration {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.entry-hover-content .entry-client {
+  white-space: normal;
+}
+
+.entry-hover-content .entry-ticket-label {
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .entry-hover-content .entry-ticket-name,
@@ -777,14 +797,8 @@ a.summary-link:hover {
   overflow: visible;
   white-space: normal;
   text-overflow: clip;
-  overflow-wrap: anywhere;
-}
-
-.entry-duration {
-  flex-shrink: 0;
-  font-size: 0.85em;
-  opacity: 0.8;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .entry-ticket {

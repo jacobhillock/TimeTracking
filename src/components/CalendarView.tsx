@@ -679,22 +679,18 @@ function CalendarView({
                     />
                     <div className="entry-client">
                       <span className="entry-ticket-name">{displayName}</span>
-                      <span className="entry-time">
-                        {entry.startTime}–{entry.endTime} ({durationHours}h)
-                      </span>
                       {friendlyName && ticketNumber && (
                         <span className="entry-ticket-label">{ticketNumber}</span>
                       )}
+                      <span className="entry-duration">({durationHours}h)</span>
                     </div>
                     <div className="entry-description">{entry.description}</div>
                     <div className="entry-hover-content" aria-hidden="true">
                       <div className="entry-ticket-name">{displayName}</div>
-                      <div className="entry-time">
-                        {entry.startTime}–{entry.endTime} ({durationHours}h)
-                      </div>
                       {friendlyName && ticketNumber && (
                         <div className="entry-ticket-label">{ticketNumber}</div>
                       )}
+                      <div className="entry-duration">({durationHours}h)</div>
                       {entry.description && (
                         <div className="entry-description">{entry.description}</div>
                       )}
