@@ -804,7 +804,6 @@ function CalendarView({
                   }}
                   onInputValueChange={(value) => {
                     setTicketSearch(value);
-                    setTicketPickerOpen(true);
                   }}
                   filter={(option, query) =>
                     `${option.friendlyName ?? ""} ${option.client}-${option.ticket}`
