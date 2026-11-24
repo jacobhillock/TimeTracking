@@ -695,7 +695,9 @@ function CalendarView({
                       {friendlyName && ticketNumber && (
                         <div className="entry-ticket-label">{ticketNumber}</div>
                       )}
-                      {entry.description && <div className="entry-description">{entry.description}</div>}
+                      {entry.description && (
+                        <div className="entry-description">{entry.description}</div>
+                      )}
                     </div>
                     <button
                       className="entry-delete"
