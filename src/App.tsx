@@ -2236,12 +2236,23 @@ function App() {
         )}
 
         {showLogPrompt && clickedSummary && (
-          <div className="calendar-modal-overlay" onClick={() => setShowLogPrompt(false)}>
+          <div className="calendar-modal-overlay">
             <div
               className="calendar-modal"
-              style={{ maxWidth: "400px" }}
+              style={{ maxWidth: "400px", position: "relative" }}
               onClick={(e) => e.stopPropagation()}
             >
+              <button
+                type="button"
+                className="calendar-modal-close"
+                aria-label="Close"
+                onClick={() => {
+                  setShowLogPrompt(false);
+                  setClickedSummary(null);
+                }}
+              >
+                ×
+              </button>
               <h3>Mark as Logged?</h3>
               <p>
                 Would you like to mark <strong>{clickedSummary.key}</strong> as logged?
